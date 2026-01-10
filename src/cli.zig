@@ -58,6 +58,7 @@ pub fn printHelp(stdout: std.fs.File) !void {
         \\  link <CHILD> <PARENT>   Add dependency
         \\  unlink <CHILD> <PARENT> Remove dependency
         \\  graph <ID>              Show dependency tree
+        \\  graph <ID> --reverse    Show blocked tasks tree
         \\
         \\Tags:
         \\  tag <ID> <TAG>          Add tag

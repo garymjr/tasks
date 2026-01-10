@@ -7,3 +7,7 @@ pub const edit = @import("edit.zig");
 pub const done = @import("done.zig");
 pub const block = @import("block.zig");
 pub const unblock = @import("unblock.zig");
+pub const link = @import("link.zig");
+pub const unlink = @import("unlink.zig");
+pub const next = @import("next.zig");
+pub const graph = @import("graph.zig");

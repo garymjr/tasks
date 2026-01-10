@@ -695,10 +695,10 @@ pub fn updateBlockedBy(store: *TaskStore) !void {
 
 ### Phase 5: Dependencies
 
-- [ ] `link.zig`, `unlink.zig`
-- [ ] `graph.zig` - Cycle detection + tree rendering
-- [ ] `next.zig` - Ready tasks
-- [ ] `graph` command for visualization
+- [x] `link.zig`, `unlink.zig`
+- [x] `graph.zig` - Cycle detection + tree rendering
+- [x] `next.zig` - Ready tasks
+- [x] `graph` command for visualization
 
 ### Phase 6: Tags & Search
 
