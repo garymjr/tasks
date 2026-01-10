@@ -15,3 +15,4 @@ pub const tags = @import("tags.zig");
 pub const search = @import("search.zig");
 pub const next = @import("next.zig");
 pub const graph = @import("graph.zig");
+pub const stats = @import("stats.zig");

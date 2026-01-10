@@ -91,14 +91,20 @@ pub fn renderTaskDetail(allocator: std.mem.Allocator, task: *const Task) ![]cons
         try writer.writeAll("Depends on:  (none)\n");
     }
 
-    try writer.print("Created:     {s}\n", .{utils.formatRelativeAlloc(allocator, task.created_at) catch "?"});
+    try writer.writeAll("Created:     ");
+    try utils.formatRelativeToWriter(writer, task.created_at);
+    try writer.writeAll("\n");
 
     if (task.updated_at != task.created_at) {
-        try writer.print("Updated:     {s}\n", .{utils.formatRelativeAlloc(allocator, task.updated_at) catch "?"});
+        try writer.writeAll("Updated:     ");
+        try utils.formatRelativeToWriter(writer, task.updated_at);
+        try writer.writeAll("\n");
     }
 
     if (task.completed_at) |completed| {
-        try writer.print("Completed:   {s}\n", .{utils.formatRelativeAlloc(allocator, completed) catch "?"});
+        try writer.writeAll("Completed:   ");
+        try utils.formatRelativeToWriter(writer, completed);
+        try writer.writeAll("\n");
     }
 
     if (task.body) |body| {
@@ -152,7 +158,7 @@ test "render task table" {
     var task = try Task.init(allocator, "Test task");
     defer task.deinit(allocator);
 
-    var tasks = [_]*const Task{&task};
+    var tasks = [_]*Task{&task};
     const output = try renderTaskTable(allocator, &tasks);
     defer allocator.free(output);
 

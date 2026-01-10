@@ -73,18 +73,8 @@ pub fn main() !void {
         .search => {
             try commands.search.run(allocator, stdout, stderr);
         },
-        else => {
-            if (!store.exists()) {
-                try stderr.writeAll("Error: Not initialized. Run 'tasks init' first.\n");
-                return error.NotInitialized;
-            }
-
-            var task_store = try store.loadTasks(allocator);
-            defer task_store.deinit();
-
-            const msg = try std.fmt.allocPrint(allocator, "Command not yet implemented: {s}\n", .{@tagName(cmd)});
-            defer allocator.free(msg);
-            try stdout.writeAll(msg);
+        .stats => {
+            try commands.stats.run(allocator, stdout);
         },
     }
 }

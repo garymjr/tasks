@@ -709,11 +709,21 @@ pub fn updateBlockedBy(store: *TaskStore) !void {
 
 ### Phase 7: Polish
 
-- [ ] `stats.zig` - Summary command
-- [ ] Better display (colors, formatting)
-- [ ] Error messages
-- [ ] Help text
-- [ ] Tests for core functions
+- [x] `stats.zig` - Summary command
+- [x] Better display (colors, formatting)
+- [x] Error messages
+- [x] Help text
+- [x] Tests for core functions
+
+### Phase 8: ANSI Color Enhancement
+
+- [ ] Enhance `display.zig` with color-coded output
+- [ ] Color status symbols (todo=yellow, in_progress=blue, done=green, blocked=red)
+- [ ] Color priority indicators (low=dim, medium=normal, high=yellow, critical=red)
+- [ ] Color stats output sections
+- [ ] Add `--no-color` flag to disable colors for non-TTY output
+- [ ] Color tag output in `tags` command
+- [ ] Enhanced table formatting with borders/lines
 
 ---
 

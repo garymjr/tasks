@@ -4,23 +4,22 @@ pub fn formatTimestamp(timestamp: i64) []const u8 {
     // Convert Unix timestamp to local time string
     const epoch = std.time.epoch.EpochSeconds{ .secs = @as(u64, @intCast(@max(0, timestamp))) };
 
-    var days: u64 = undefined;
-    var secs: u64 = undefined;
-    epoch.calculateDayAndSecs(&days, &secs);
+    const day_seconds = epoch.getDaySeconds();
+    const day_index = epoch.getEpochDay();
 
     var year: i32 = 1970;
     var month: std.time.epoch.Month = undefined;
     var day: u8 = undefined;
 
-    const year_day = epoch.calculateYearDay(days);
+    const year_day = day_index.calculateYearDay();
     year = @as(i32, @intCast(year_day.year));
-    const md = std.time.epoch.getYearMonthDay(year_day.year, year_day.day);
+    const md = year_day.calculateMonthDay();
     month = md.month;
     day = md.day_index + 1;
 
-    const hour: u5 = @intCast(secs / 3600);
-    const minute: u6 = @intCast((secs % 3600) / 60);
-    const second: u6 = @intCast(secs % 60);
+    const hour: u5 = day_seconds.getHoursIntoDay();
+    const minute: u6 = day_seconds.getMinutesIntoHour();
+    const second: u6 = day_seconds.getSecondsIntoMinute();
 
     var buffer: [32]u8 = undefined;
     const month_str = monthName(month);
@@ -42,23 +41,22 @@ pub fn formatTimestamp(timestamp: i64) []const u8 {
 pub fn formatTimestampAlloc(allocator: std.mem.Allocator, timestamp: i64) ![]const u8 {
     const epoch = std.time.epoch.EpochSeconds{ .secs = @as(u64, @intCast(@max(0, timestamp))) };
 
-    var days: u64 = undefined;
-    var secs: u64 = undefined;
-    epoch.calculateDayAndSecs(&days, &secs);
+    const day_seconds = epoch.getDaySeconds();
+    const day_index = epoch.getEpochDay();
 
     var year: i32 = 1970;
     var month: std.time.epoch.Month = undefined;
     var day: u8 = undefined;
 
-    const year_day = epoch.calculateYearDay(days);
+    const year_day = day_index.calculateYearDay();
     year = @as(i32, @intCast(year_day.year));
-    const md = std.time.epoch.getYearMonthDay(year_day.year, year_day.day);
+    const md = year_day.calculateMonthDay();
     month = md.month;
     day = md.day_index + 1;
 
-    const hour: u5 = @intCast(secs / 3600);
-    const minute: u6 = @intCast((secs % 3600) / 60);
-    const second: u6 = @intCast(secs % 60);
+    const hour: u5 = day_seconds.getHoursIntoDay();
+    const minute: u6 = day_seconds.getMinutesIntoHour();
+    const second: u6 = day_seconds.getSecondsIntoMinute();
 
     const month_str = monthName(month);
     return std.fmt.allocPrint(
@@ -112,6 +110,27 @@ pub fn formatRelativeAlloc(allocator: std.mem.Allocator, timestamp: i64) ![]cons
     } else {
         const weeks = @divTrunc(diff, 604800);
         return std.fmt.allocPrint(allocator, "{d}w ago", .{weeks});
+    }
+}
+
+pub fn formatRelativeToWriter(writer: anytype, timestamp: i64) !void {
+    const now = std.time.timestamp();
+    const diff = now - timestamp;
+
+    if (diff < 60) {
+        try writer.writeAll("just now");
+    } else if (diff < 3600) {
+        const mins = @divTrunc(diff, 60);
+        try writer.print("{d}m ago", .{mins});
+    } else if (diff < 86400) {
+        const hours = @divTrunc(diff, 3600);
+        try writer.print("{d}h ago", .{hours});
+    } else if (diff < 604800) {
+        const days = @divTrunc(diff, 86400);
+        try writer.print("{d}d ago", .{days});
+    } else {
+        const weeks = @divTrunc(diff, 604800);
+        try writer.print("{d}w ago", .{weeks});
     }
 }
 
@@ -229,6 +248,27 @@ test "join single" {
     defer allocator.free(joined);
 
     try std.testing.expectEqualStrings("single", joined);
+}
+
+test "format relative to writer" {
+    var buffer: [64]u8 = undefined;
+    var fbs = std.io.fixedBufferStream(&buffer);
+    const writer = fbs.writer();
+
+    const now = std.time.timestamp();
+
+    // Test just now
+    try formatRelativeToWriter(writer, now);
+    try std.testing.expectEqualStrings("just now", fbs.getWritten());
+
+    // Reset buffer
+    fbs.reset();
+
+    // Test minutes ago
+    try formatRelativeToWriter(writer, now - 120);
+    const result = fbs.getWritten();
+    try std.testing.expect(std.mem.indexOf(u8, result, "m ago") != null);
+    try std.testing.expect(std.mem.indexOf(u8, result, "2") != null);
 }
 
 test "truncate" {
