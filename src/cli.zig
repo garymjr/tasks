@@ -4,7 +4,22 @@ pub const Command = enum {
     add,
     list,
     show,
+    edit,
+    delete,
+    done,
+    block,
+    unblock,
+    link,
+    unlink,
+    tag,
+    untag,
+    tags,
+    search,
+    next,
+    graph,
+    stats,
     help,
+    init,
 };
 
 pub fn parse() !Command {
@@ -20,11 +35,39 @@ pub fn parse() !Command {
     };
 }
 
-pub fn printHelp(writer: anytype) !void {
-    try writer.writeAll(
+pub fn printHelp(stdout: std.fs.File) !void {
+    try stdout.writeAll(
         \\Tasks CLI - Task management
         \\
-        \\Commands: add, list, show, help
+        \\Core Commands:
+        \\  init                    Initialize in current directory
+        \\  add "TITLE"             Add a new task
+        \\  list                    List all tasks
+        \\  show <ID>               Show task details
+        \\  edit <ID>               Edit a task
+        \\  delete <ID>             Delete a task
+        \\  done <ID>               Mark task as done
+        \\
+        \\Status:
+        \\  block <ID>              Mark task as blocked
+        \\  unblock <ID>            Unblock task (reset to todo)
+        \\  next                    Show next ready task
+        \\  next --all              Show all ready tasks
+        \\
+        \\Dependencies:
+        \\  link <CHILD> <PARENT>   Add dependency
+        \\  unlink <CHILD> <PARENT> Remove dependency
+        \\  graph <ID>              Show dependency tree
+        \\
+        \\Tags:
+        \\  tag <ID> <TAG>          Add tag
+        \\  untag <ID> <TAG>        Remove tag
+        \\  tags                    List all tags
+        \\
+        \\Other:
+        \\  search QUERY            Search tasks
+        \\  stats                   Show statistics
+        \\  help                    Show this help
         \\
     );
 }

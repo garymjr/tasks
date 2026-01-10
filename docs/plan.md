@@ -673,10 +673,10 @@ pub fn updateBlockedBy(store: *TaskStore) !void {
 
 ### Phase 2: Storage
 
-- [ ] `store.zig` - JSON read/write with 0.15 std.json API
-- [ ] `.tasks/tasks.json` handling
-- [ ] `init` command
-- [ ] Error handling for missing files
+- [x] `store.zig` - JSON read/write with 0.15 std.json API
+- [x] `.tasks/tasks.json` handling
+- [x] `init` command
+- [x] Error handling for missing files
 
 ### Phase 3: Core Commands
 
