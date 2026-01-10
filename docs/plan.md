@@ -702,10 +702,10 @@ pub fn updateBlockedBy(store: *TaskStore) !void {
 
 ### Phase 6: Tags & Search
 
-- [ ] `tag.zig`, `untag.zig`, `tags.zig`
-- [ ] `search.zig` - Text search
-- [ ] Filter improvements for `list`
-- [ ] Tag statistics
+- [x] `tag.zig`, `untag.zig`, `tags.zig`
+- [x] `search.zig` - Text search
+- [x] Filter improvements for `list`
+- [x] Tag statistics
 
 ### Phase 7: Polish
 
