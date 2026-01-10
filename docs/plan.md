@@ -680,11 +680,11 @@ pub fn updateBlockedBy(store: *TaskStore) !void {
 
 ### Phase 3: Core Commands
 
-- [ ] `add.zig` - Create with UUID generation
-- [ ] `list.zig` - List with table output
-- [ ] `show.zig` - Detail view
-- [ ] `delete.zig` - Remove task
-- [ ] `display.zig` - Table and detail rendering
+- [x] `add.zig` - Create with UUID generation
+- [x] `list.zig` - List with table output
+- [x] `show.zig` - Detail view
+- [x] `delete.zig` - Remove task
+- [x] `display.zig` - Table and detail rendering
 
 ### Phase 4: Status & Edit
 

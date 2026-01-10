@@ -25,6 +25,18 @@ pub fn main() !void {
         .init => {
             try commands.init.run(allocator, stdout);
         },
+        .add => {
+            try commands.add.run(allocator, stdout);
+        },
+        .list => {
+            try commands.list.run(allocator, stdout);
+        },
+        .show => {
+            try commands.show.run(allocator, stdout, stderr);
+        },
+        .delete => {
+            try commands.delete.run(allocator, stdout, stderr);
+        },
         else => {
             if (!store.exists()) {
                 try stderr.writeAll("Error: Not initialized. Run 'tasks init' first.\n");

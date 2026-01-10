@@ -74,18 +74,18 @@ pub fn formatRelative(timestamp: i64) []const u8 {
 
     var buffer: [32]u8 = undefined;
     const result = if (diff < 60) {
-        std.fmt.bufPrint(&buffer, "just now", .{}) catch "just now"
+        std.fmt.bufPrint(&buffer, "just now", .{}) catch "just now";
     } else if (diff < 3600) {
         const mins = diff / 60;
-        std.fmt.bufPrint(&buffer, "{d}m ago", .{mins}) catch "recently"
+        std.fmt.bufPrint(&buffer, "{d}m ago", .{mins}) catch "recently";
     } else if (diff < 86400) {
         const hours = diff / 3600;
-        std.fmt.bufPrint(&buffer, "{d}h ago", .{hours}) catch "today"
+        std.fmt.bufPrint(&buffer, "{d}h ago", .{hours}) catch "today";
     } else if (diff < 604800) {
         const days = diff / 86400;
-        std.fmt.bufPrint(&buffer, "{d}d ago", .{days}) catch "this week"
+        std.fmt.bufPrint(&buffer, "{d}d ago", .{days}) catch "this week";
     } else {
-        std.fmt.bufPrint(&buffer, "{d}w ago", .{diff / 604800}) catch "long ago"
+        std.fmt.bufPrint(&buffer, "{d}w ago", .{diff / 604800}) catch "long ago";
     };
 
     var static_buf: [64]u8 = undefined;
@@ -101,16 +101,16 @@ pub fn formatRelativeAlloc(allocator: std.mem.Allocator, timestamp: i64) ![]cons
     if (diff < 60) {
         return allocator.dupe(u8, "just now");
     } else if (diff < 3600) {
-        const mins = diff / 60;
+        const mins = @divTrunc(diff, 60);
         return std.fmt.allocPrint(allocator, "{d}m ago", .{mins});
     } else if (diff < 86400) {
-        const hours = diff / 3600;
+        const hours = @divTrunc(diff, 3600);
         return std.fmt.allocPrint(allocator, "{d}h ago", .{hours});
     } else if (diff < 604800) {
-        const days = diff / 86400;
+        const days = @divTrunc(diff, 86400);
         return std.fmt.allocPrint(allocator, "{d}d ago", .{days});
     } else {
-        const weeks = diff / 604800;
+        const weeks = @divTrunc(diff, 604800);
         return std.fmt.allocPrint(allocator, "{d}w ago", .{weeks});
     }
 }
