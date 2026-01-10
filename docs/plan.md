@@ -688,10 +688,10 @@ pub fn updateBlockedBy(store: *TaskStore) !void {
 
 ### Phase 4: Status & Edit
 
-- [ ] `edit.zig` - Update fields
-- [ ] `done.zig`, `block.zig`, `unblock.zig`
-- [ ] Status transitions
-- [ ] Timestamp updates on edits
+- [x] `edit.zig` - Update fields
+- [x] `done.zig`, `block.zig`, `unblock.zig`
+- [x] Status transitions
+- [x] Timestamp updates on edits
 
 ### Phase 5: Dependencies
 
