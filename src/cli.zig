@@ -1,11 +1,13 @@
 const std = @import("std");
 const argparse = @import("argparse");
 const commands = @import("commands/mod.zig");
+const json = @import("json.zig");
 
 const Context = struct {
     allocator: std.mem.Allocator,
     stdout: std.fs.File,
     stderr: std.fs.File,
+    json_output: bool,
 };
 
 var context: ?Context = null;
@@ -25,7 +27,7 @@ pub fn run(allocator: std.mem.Allocator, stdout: std.fs.File, stderr: std.fs.Fil
         return;
     }
 
-    context = .{ .allocator = allocator, .stdout = stdout, .stderr = stderr };
+    context = .{ .allocator = allocator, .stdout = stdout, .stderr = stderr, .json_output = false };
     defer context = null;
 
     command.run(allocator, argv) catch |err| {
@@ -51,7 +53,7 @@ pub fn run(allocator: std.mem.Allocator, stdout: std.fs.File, stderr: std.fs.Fil
                 std.process.exit(1);
             },
             else => {
-                if (handleCommandError(err, stderr)) {
+                if (handleCommandError(err, stdout, stderr)) {
                     std.process.exit(1);
                 }
 
@@ -111,7 +113,9 @@ fn buildCommand() argparse.Command {
     };
 }
 
-fn handleCommandError(err: anyerror, stderr: std.fs.File) bool {
+fn handleCommandError(err: anyerror, stdout: std.fs.File, stderr: std.fs.File) bool {
+    const use_json = context != null and context.?.json_output;
+
     switch (err) {
         error.AlreadyInitialized,
         error.InitFailed,
@@ -124,23 +128,63 @@ fn handleCommandError(err: anyerror, stderr: std.fs.File) bool {
         error.NoReadyTasks,
         => return true,
         error.FileNotFound => {
-            stderr.writeAll("Error: No tasks repository found. Run `tasks init`.\n") catch {};
+            if (use_json) {
+                var buffer: [512]u8 = undefined;
+                var writer = stdout.writer(&buffer);
+                defer writer.interface.flush() catch {};
+                const out = &writer.interface;
+                json.writeError(out, "No tasks repository found. Run `tasks init`.") catch {};
+            } else {
+                stderr.writeAll("Error: No tasks repository found. Run `tasks init`.\n") catch {};
+            }
             return true;
         },
         error.InvalidJson => {
-            stderr.writeAll("Error: Tasks data is invalid. Fix `.tasks/tasks.json` or re-init.\n") catch {};
+            if (use_json) {
+                var buffer: [512]u8 = undefined;
+                var writer = stdout.writer(&buffer);
+                defer writer.interface.flush() catch {};
+                const out = &writer.interface;
+                json.writeError(out, "Tasks data is invalid. Fix `.tasks/tasks.json` or re-init.") catch {};
+            } else {
+                stderr.writeAll("Error: Tasks data is invalid. Fix `.tasks/tasks.json` or re-init.\n") catch {};
+            }
             return true;
         },
         error.LockFailed => {
-            stderr.writeAll("Error: Failed to acquire tasks lock.\n") catch {};
+            if (use_json) {
+                var buffer: [256]u8 = undefined;
+                var writer = stdout.writer(&buffer);
+                defer writer.interface.flush() catch {};
+                const out = &writer.interface;
+                json.writeError(out, "Failed to acquire tasks lock.") catch {};
+            } else {
+                stderr.writeAll("Error: Failed to acquire tasks lock.\n") catch {};
+            }
             return true;
         },
         error.ReadFailed => {
-            stderr.writeAll("Error: Failed to read tasks data.\n") catch {};
+            if (use_json) {
+                var buffer: [256]u8 = undefined;
+                var writer = stdout.writer(&buffer);
+                defer writer.interface.flush() catch {};
+                const out = &writer.interface;
+                json.writeError(out, "Failed to read tasks data.") catch {};
+            } else {
+                stderr.writeAll("Error: Failed to read tasks data.\n") catch {};
+            }
             return true;
         },
         error.WriteFailed => {
-            stderr.writeAll("Error: Failed to write tasks data.\n") catch {};
+            if (use_json) {
+                var buffer: [256]u8 = undefined;
+                var writer = stdout.writer(&buffer);
+                defer writer.interface.flush() catch {};
+                const out = &writer.interface;
+                json.writeError(out, "Failed to write tasks data.") catch {};
+            } else {
+                stderr.writeAll("Error: Failed to write tasks data.\n") catch {};
+            }
             return true;
         },
         else => return false,
@@ -150,108 +194,126 @@ fn handleCommandError(err: anyerror, stderr: std.fs.File) bool {
 fn handleInit(parser: *argparse.Parser, argv: []const []const u8) anyerror!void {
     _ = argv;
     const ctx = context.?;
+    context.?.json_output = parser.getFlag("json");
     try commands.init.run(ctx.allocator, ctx.stdout, parser);
 }
 
 fn handleAdd(parser: *argparse.Parser, argv: []const []const u8) anyerror!void {
     _ = argv;
     const ctx = context.?;
+    context.?.json_output = parser.getFlag("json");
     try commands.add.run(ctx.allocator, ctx.stdout, parser);
 }
 
 fn handleList(parser: *argparse.Parser, argv: []const []const u8) anyerror!void {
     _ = argv;
     const ctx = context.?;
+    context.?.json_output = parser.getFlag("json");
     try commands.list.run(ctx.allocator, ctx.stdout, parser);
 }
 
 fn handleShow(parser: *argparse.Parser, argv: []const []const u8) anyerror!void {
     _ = argv;
     const ctx = context.?;
+    context.?.json_output = parser.getFlag("json");
     try commands.show.run(ctx.allocator, ctx.stdout, ctx.stderr, parser);
 }
 
 fn handleEdit(parser: *argparse.Parser, argv: []const []const u8) anyerror!void {
     _ = argv;
     const ctx = context.?;
+    context.?.json_output = parser.getFlag("json");
     try commands.edit.run(ctx.allocator, ctx.stdout, ctx.stderr, parser);
 }
 
 fn handleDelete(parser: *argparse.Parser, argv: []const []const u8) anyerror!void {
     _ = argv;
     const ctx = context.?;
+    context.?.json_output = parser.getFlag("json");
     try commands.delete.run(ctx.allocator, ctx.stdout, ctx.stderr, parser);
 }
 
 fn handleDone(parser: *argparse.Parser, argv: []const []const u8) anyerror!void {
     _ = argv;
     const ctx = context.?;
+    context.?.json_output = parser.getFlag("json");
     try commands.done.run(ctx.allocator, ctx.stdout, ctx.stderr, parser);
 }
 
 fn handleBlock(parser: *argparse.Parser, argv: []const []const u8) anyerror!void {
     _ = argv;
     const ctx = context.?;
+    context.?.json_output = parser.getFlag("json");
     try commands.block.run(ctx.allocator, ctx.stdout, ctx.stderr, parser);
 }
 
 fn handleUnblock(parser: *argparse.Parser, argv: []const []const u8) anyerror!void {
     _ = argv;
     const ctx = context.?;
+    context.?.json_output = parser.getFlag("json");
     try commands.unblock.run(ctx.allocator, ctx.stdout, ctx.stderr, parser);
 }
 
 fn handleLink(parser: *argparse.Parser, argv: []const []const u8) anyerror!void {
     _ = argv;
     const ctx = context.?;
+    context.?.json_output = parser.getFlag("json");
     try commands.link.run(ctx.allocator, ctx.stdout, ctx.stderr, parser);
 }
 
 fn handleUnlink(parser: *argparse.Parser, argv: []const []const u8) anyerror!void {
     _ = argv;
     const ctx = context.?;
+    context.?.json_output = parser.getFlag("json");
     try commands.unlink.run(ctx.allocator, ctx.stdout, ctx.stderr, parser);
 }
 
 fn handleGraph(parser: *argparse.Parser, argv: []const []const u8) anyerror!void {
     _ = argv;
     const ctx = context.?;
+    context.?.json_output = parser.getFlag("json");
     try commands.graph.run(ctx.allocator, ctx.stdout, ctx.stderr, parser);
 }
 
 fn handleTag(parser: *argparse.Parser, argv: []const []const u8) anyerror!void {
     _ = argv;
     const ctx = context.?;
+    context.?.json_output = parser.getFlag("json");
     try commands.tag.run(ctx.allocator, ctx.stdout, ctx.stderr, parser);
 }
 
 fn handleUntag(parser: *argparse.Parser, argv: []const []const u8) anyerror!void {
     _ = argv;
     const ctx = context.?;
+    context.?.json_output = parser.getFlag("json");
     try commands.untag.run(ctx.allocator, ctx.stdout, ctx.stderr, parser);
 }
 
 fn handleTags(parser: *argparse.Parser, argv: []const []const u8) anyerror!void {
     _ = argv;
     const ctx = context.?;
+    context.?.json_output = parser.getFlag("json");
     try commands.tags.run(ctx.allocator, ctx.stdout, parser);
 }
 
 fn handleSearch(parser: *argparse.Parser, argv: []const []const u8) anyerror!void {
     _ = argv;
     const ctx = context.?;
+    context.?.json_output = parser.getFlag("json");
     try commands.search.run(ctx.allocator, ctx.stdout, ctx.stderr, parser);
 }
 
 fn handleNext(parser: *argparse.Parser, argv: []const []const u8) anyerror!void {
     _ = argv;
     const ctx = context.?;
+    context.?.json_output = parser.getFlag("json");
     try commands.next.run(ctx.allocator, ctx.stdout, ctx.stderr, parser);
 }
 
 fn handleStats(parser: *argparse.Parser, argv: []const []const u8) anyerror!void {
     _ = argv;
     const ctx = context.?;
+    context.?.json_output = parser.getFlag("json");
     try commands.stats.run(ctx.allocator, ctx.stdout, parser);
 }
 

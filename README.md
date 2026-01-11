@@ -70,6 +70,7 @@ General:
 
 - `tasks help` or `tasks help <command>` for full usage.
 - `--no-color` disables ANSI color output on supported commands.
+- `--json` outputs machine-readable JSON on output commands.
 
 Core:
 

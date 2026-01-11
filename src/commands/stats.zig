@@ -6,6 +6,7 @@ const Status = model.Status;
 const Priority = model.Priority;
 const display = @import("../display.zig");
 const utils = @import("../utils.zig");
+const json = @import("../json.zig");
 
 const Stats = struct {
     total: usize = 0,
@@ -34,12 +35,14 @@ const Stats = struct {
 
 pub const args = [_]argparse.Arg{
     .{ .name = "no-color", .long = "no-color", .kind = .flag, .help = "Disable ANSI colors" },
+    .{ .name = "json", .long = "json", .kind = .flag, .help = "Output JSON" },
 };
 
 pub fn run(allocator: std.mem.Allocator, stdout: std.fs.File, parser: *argparse.Parser) !void {
     const store = @import("../store.zig");
 
     const no_color = parser.getFlag("no-color");
+    const use_json = parser.getFlag("json");
 
     const options = display.resolveOptions(stdout, no_color);
 
@@ -47,6 +50,10 @@ pub fn run(allocator: std.mem.Allocator, stdout: std.fs.File, parser: *argparse.
     defer task_store.deinit();
 
     if (task_store.tasks.items.len == 0) {
+        if (use_json) {
+            try stdout.writeAll("{\"total\":0,\"by_status\":{\"todo\":0,\"in_progress\":0,\"done\":0,\"blocked\":0},\"by_priority\":{\"low\":0,\"medium\":0,\"high\":0,\"critical\":0},\"completed_this_week\":0,\"created_this_week\":0,\"total_tags\":0,\"unique_tags\":0,\"blocked_tasks\":0,\"completion_rate\":0,\"top_tags\":[]}\n");
+            return;
+        }
         try stdout.writeAll("No tasks found. Add a task with 'tasks add \"Title\"'.\n");
         return;
     }
@@ -91,7 +98,78 @@ pub fn run(allocator: std.mem.Allocator, stdout: std.fs.File, parser: *argparse.
     else
         0.0;
 
+    if (use_json) {
+        try writeStatsJson(stdout, &stats, completion_rate);
+        return;
+    }
+
     try renderStats(stdout, &stats, completion_rate, options);
+}
+
+fn writeStatsJson(stdout: std.fs.File, stats: *const Stats, completion_rate: f64) !void {
+    var buffer: [8192]u8 = undefined;
+    var writer = stdout.writer(&buffer);
+    defer writer.interface.flush() catch {};
+    const out = &writer.interface;
+
+    const TagEntry = struct { tag: []const u8, count: usize };
+    var tag_entries = try std.ArrayList(TagEntry).initCapacity(stats.unique_tags.allocator, stats.unique_tags.count());
+    defer tag_entries.deinit(stats.unique_tags.allocator);
+
+    var it = stats.unique_tags.iterator();
+    while (it.next()) |entry| {
+        try tag_entries.append(stats.unique_tags.allocator, .{ .tag = entry.key_ptr.*, .count = entry.value_ptr.* });
+    }
+
+    std.sort.insertion(TagEntry, tag_entries.items, {}, struct {
+        fn lessThan(_: void, a: TagEntry, b: TagEntry) bool {
+            return a.count > b.count;
+        }
+    }.lessThan);
+
+    try out.writeAll("{\"total\":");
+    try out.print("{}", .{stats.total});
+    try out.writeAll(",\"by_status\":{\"todo\":");
+    try out.print("{}", .{stats.by_status[@intFromEnum(Status.todo)]});
+    try out.writeAll(",\"in_progress\":");
+    try out.print("{}", .{stats.by_status[@intFromEnum(Status.in_progress)]});
+    try out.writeAll(",\"done\":");
+    try out.print("{}", .{stats.by_status[@intFromEnum(Status.done)]});
+    try out.writeAll(",\"blocked\":");
+    try out.print("{}", .{stats.by_status[@intFromEnum(Status.blocked)]});
+    try out.writeAll("},\"by_priority\":{\"low\":");
+    try out.print("{}", .{stats.by_priority[@intFromEnum(Priority.low)]});
+    try out.writeAll(",\"medium\":");
+    try out.print("{}", .{stats.by_priority[@intFromEnum(Priority.medium)]});
+    try out.writeAll(",\"high\":");
+    try out.print("{}", .{stats.by_priority[@intFromEnum(Priority.high)]});
+    try out.writeAll(",\"critical\":");
+    try out.print("{}", .{stats.by_priority[@intFromEnum(Priority.critical)]});
+    try out.writeAll("},\"completed_this_week\":");
+    try out.print("{}", .{stats.completed_this_week});
+    try out.writeAll(",\"created_this_week\":");
+    try out.print("{}", .{stats.created_this_week});
+    try out.writeAll(",\"total_tags\":");
+    try out.print("{}", .{stats.total_tags});
+    try out.writeAll(",\"unique_tags\":");
+    try out.print("{}", .{stats.unique_tags.count()});
+    try out.writeAll(",\"blocked_tasks\":");
+    try out.print("{}", .{stats.blocked_tasks});
+    try out.writeAll(",\"completion_rate\":");
+    try out.print("{d:.1}", .{completion_rate});
+    try out.writeAll(",\"top_tags\":[");
+
+    const max_tags = @min(10, tag_entries.items.len);
+    for (tag_entries.items[0..max_tags], 0..) |entry, index| {
+        if (index > 0) try out.writeAll(",");
+        try out.writeAll("{\"name\":");
+        try json.writeJsonString(out, entry.tag);
+        try out.writeAll(",\"count\":");
+        try out.print("{}", .{entry.count});
+        try out.writeAll("}");
+    }
+
+    try out.writeAll("]}\n");
 }
 
 fn renderStats(stdout: std.fs.File, stats: *const Stats, completion_rate: f64, options: display.RenderOptions) !void {

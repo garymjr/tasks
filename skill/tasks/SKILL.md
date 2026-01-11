@@ -13,6 +13,7 @@ Local-first task manager stored in `.tasks/tasks.json` per directory. Supports d
 - Organizing work with dependencies and blocked states
 - Tracking task status (todo → in_progress → done)
 - Filtering by tags, status, or priority
+- Prefer `--json` output for supported commands
 
 ## Ideal Workflows
 

@@ -3,6 +3,7 @@ const argparse = @import("argparse");
 const model = @import("../model.zig");
 const store = @import("../store.zig");
 const display = @import("../display.zig");
+const json = @import("../json.zig");
 
 const AddError = error{
     NotInitialized,
@@ -13,6 +14,7 @@ const AddError = error{
 
 pub const args = [_]argparse.Arg{
     .{ .name = "no-color", .long = "no-color", .kind = .flag, .help = "Disable ANSI colors" },
+    .{ .name = "json", .long = "json", .kind = .flag, .help = "Output JSON" },
     .{ .name = "body", .long = "body", .kind = .option, .help = "Task body" },
     .{ .name = "priority", .long = "priority", .kind = .option, .help = "Task priority", .validator = validatePriority },
     .{ .name = "tags", .long = "tags", .kind = .option, .help = "Comma-separated tags" },
@@ -22,6 +24,7 @@ pub const args = [_]argparse.Arg{
 pub fn run(allocator: std.mem.Allocator, stdout: std.fs.File, parser: *argparse.Parser) !void {
     const title_value = try parser.getRequiredPositional("title");
     const no_color = parser.getFlag("no-color");
+    const use_json = parser.getFlag("json");
     const body = parser.getOption("body");
 
     var priority: model.Priority = .medium;
@@ -59,6 +62,17 @@ pub fn run(allocator: std.mem.Allocator, stdout: std.fs.File, parser: *argparse.
     }
 
     try store.saveTasks(allocator, &task_store);
+
+    if (use_json) {
+        var buffer: [4096]u8 = undefined;
+        var writer = stdout.writer(&buffer);
+        defer writer.interface.flush() catch {};
+        const out = &writer.interface;
+        try out.writeAll("{\"task\":");
+        try json.writeTask(out, task);
+        try out.writeAll("}\n");
+        return;
+    }
 
     const options = display.resolveOptions(stdout, no_color);
 

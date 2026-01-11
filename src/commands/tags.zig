@@ -1,8 +1,8 @@
 const std = @import("std");
 const argparse = @import("argparse");
-const model = @import("../model.zig");
 const store = @import("../store.zig");
 const display = @import("../display.zig");
+const json = @import("../json.zig");
 
 const TagsError = error{
     NotInitialized,
@@ -11,10 +11,12 @@ const TagsError = error{
 
 pub const args = [_]argparse.Arg{
     .{ .name = "no-color", .long = "no-color", .kind = .flag, .help = "Disable ANSI colors" },
+    .{ .name = "json", .long = "json", .kind = .flag, .help = "Output JSON" },
 };
 
 pub fn run(allocator: std.mem.Allocator, stdout: std.fs.File, parser: *argparse.Parser) !void {
     const no_color = parser.getFlag("no-color");
+    const use_json = parser.getFlag("json");
 
     const options = display.resolveOptions(stdout, no_color);
     var buffer: [4096]u8 = undefined;
@@ -56,6 +58,20 @@ pub fn run(allocator: std.mem.Allocator, stdout: std.fs.File, parser: *argparse.
             return std.mem.order(u8, a[0], b[0]) == .lt;
         }
     }.lessThan);
+
+    if (use_json) {
+        try out.writeAll("{\"tags\":[");
+        for (sorted_tags.items, 0..) |item, index| {
+            if (index > 0) try out.writeAll(",");
+            try out.writeAll("{\"name\":");
+            try json.writeJsonString(out, item[0]);
+            try out.writeAll(",\"count\":");
+            try out.print("{}", .{item[1]});
+            try out.writeAll("}");
+        }
+        try out.writeAll("]}\n");
+        return;
+    }
 
     try out.writeAll("Tags:\n");
     try out.writeAll("───────\n");

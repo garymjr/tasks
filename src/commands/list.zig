@@ -3,6 +3,7 @@ const argparse = @import("argparse");
 const model = @import("../model.zig");
 const store = @import("../store.zig");
 const display = @import("../display.zig");
+const json = @import("../json.zig");
 
 const ListError = error{
     NotInitialized,
@@ -18,6 +19,7 @@ pub const args = [_]argparse.Arg{
     .{ .name = "blocked", .long = "blocked", .kind = .flag, .help = "Only blocked tasks" },
     .{ .name = "unblocked", .long = "unblocked", .kind = .flag, .help = "Only unblocked tasks" },
     .{ .name = "no-color", .long = "no-color", .kind = .flag, .help = "Disable ANSI colors" },
+    .{ .name = "json", .long = "json", .kind = .flag, .help = "Output JSON" },
 };
 
 pub fn run(allocator: std.mem.Allocator, stdout: std.fs.File, parser: *argparse.Parser) !void {
@@ -35,6 +37,7 @@ pub fn run(allocator: std.mem.Allocator, stdout: std.fs.File, parser: *argparse.
     const blocked_only = parser.getFlag("blocked");
     const unblocked_only = parser.getFlag("unblocked");
     const no_color = parser.getFlag("no-color");
+    const use_json = parser.getFlag("json");
 
     var task_store = try store.loadTasks(allocator);
     defer task_store.deinit();
@@ -71,6 +74,17 @@ pub fn run(allocator: std.mem.Allocator, stdout: std.fs.File, parser: *argparse.
         }
 
         try filtered.append(allocator, task);
+    }
+
+    if (use_json) {
+        var buffer: [4096]u8 = undefined;
+        var writer = stdout.writer(&buffer);
+        defer writer.interface.flush() catch {};
+        const out = &writer.interface;
+        try out.writeAll("{\"tasks\":");
+        try json.writeTaskArray(out, filtered.items);
+        try out.writeAll("}\n");
+        return;
     }
 
     const options = display.resolveOptions(stdout, no_color);

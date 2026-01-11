@@ -7,22 +7,39 @@ const InitError = error{
     InitFailed,
 } || store.StorageError || std.fs.File.WriteError;
 
-pub const args = [_]argparse.Arg{};
+pub const args = [_]argparse.Arg{
+    .{ .name = "json", .long = "json", .kind = .flag, .help = "Output JSON" },
+};
 
 pub fn run(allocator: std.mem.Allocator, stdout: std.fs.File, parser: *argparse.Parser) !void {
-    _ = parser;
+    const use_json = parser.getFlag("json");
 
     if (store.exists()) {
-        try stdout.writeAll("Error: Already initialized in this directory\n");
+        if (use_json) {
+            try stdout.writeAll("{\"ok\":false,\"message\":\"Already initialized in this directory\"}\n");
+        } else {
+            try stdout.writeAll("Error: Already initialized in this directory\n");
+        }
         return error.AlreadyInitialized;
     }
 
     store.initStore(allocator) catch |err| {
-        const msg = try std.fmt.allocPrint(allocator, "Error: Failed to initialize: {}\n", .{err});
-        defer allocator.free(msg);
-        try stdout.writeAll(msg);
+        if (use_json) {
+            const msg = try std.fmt.allocPrint(allocator, "{{\"ok\":false,\"message\":\"Failed to initialize: {}\"}}\n", .{err});
+            defer allocator.free(msg);
+            try stdout.writeAll(msg);
+        } else {
+            const msg = try std.fmt.allocPrint(allocator, "Error: Failed to initialize: {}\n", .{err});
+            defer allocator.free(msg);
+            try stdout.writeAll(msg);
+        }
         return error.InitFailed;
     };
+
+    if (use_json) {
+        try stdout.writeAll("{\"ok\":true,\"message\":\"Initialized tasks repository in .tasks/\"}\n");
+        return;
+    }
 
     try stdout.writeAll("Initialized tasks repository in .tasks/\n");
 }

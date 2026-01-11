@@ -4,6 +4,7 @@ const model = @import("../model.zig");
 const graph = @import("../graph.zig");
 const store = @import("../store.zig");
 const display = @import("../display.zig");
+const json = @import("../json.zig");
 
 const LinkError = error{
     NotInitialized,
@@ -18,6 +19,7 @@ const LinkError = error{
 
 pub const args = [_]argparse.Arg{
     .{ .name = "no-color", .long = "no-color", .kind = .flag, .help = "Disable ANSI colors" },
+    .{ .name = "json", .long = "json", .kind = .flag, .help = "Output JSON" },
     .{ .name = "child", .kind = .positional, .position = 0, .required = true, .help = "Child task ID" },
     .{ .name = "parent", .kind = .positional, .position = 1, .required = true, .help = "Parent task ID" },
 };
@@ -26,25 +28,48 @@ pub fn run(allocator: std.mem.Allocator, stdout: std.fs.File, stderr: std.fs.Fil
     const child_id_value = try parser.getRequiredPositional("child");
     const parent_id_value = try parser.getRequiredPositional("parent");
     const no_color = parser.getFlag("no-color");
+    const use_json = parser.getFlag("json");
 
     var task_store = try store.loadTasks(allocator);
     defer task_store.deinit();
 
     const child = task_store.findByShortId(child_id_value) orelse {
+        if (use_json) {
+            var buffer: [256]u8 = undefined;
+            var writer = stdout.writer(&buffer);
+            defer writer.interface.flush() catch {};
+            const out = &writer.interface;
+            try json.writeError(out, "Child task not found");
+            return error.TaskNotFound;
+        }
         try stderr.writeAll("Error: Child task not found\n");
         return error.TaskNotFound;
     };
 
     const parent = task_store.findByShortId(parent_id_value) orelse {
+        if (use_json) {
+            var buffer: [256]u8 = undefined;
+            var writer = stdout.writer(&buffer);
+            defer writer.interface.flush() catch {};
+            const out = &writer.interface;
+            try json.writeError(out, "Parent task not found");
+            return error.TaskNotFound;
+        }
         try stderr.writeAll("Error: Parent task not found\n");
         return error.TaskNotFound;
     };
 
-    const options = display.resolveOptions(stdout, no_color);
-
     const child_id_str_full = model.formatUuid(child.id);
     const parent_id_str_full = model.formatUuid(parent.id);
     if (std.mem.eql(u8, &child_id_str_full, &parent_id_str_full)) {
+        if (use_json) {
+            var buffer: [256]u8 = undefined;
+            var writer = stdout.writer(&buffer);
+            defer writer.interface.flush() catch {};
+            const out = &writer.interface;
+            try json.writeError(out, "Task cannot depend on itself");
+            return error.SelfDependency;
+        }
         try stderr.writeAll("Error: Task cannot depend on itself\n");
         return error.SelfDependency;
     }
@@ -52,6 +77,20 @@ pub fn run(allocator: std.mem.Allocator, stdout: std.fs.File, stderr: std.fs.Fil
     for (child.dependencies.items) |dep| {
         const dep_id = model.formatUuid(model.parseUuid(dep[0..36]) catch unreachable);
         if (std.mem.eql(u8, &dep_id, &parent_id_str_full)) {
+            if (use_json) {
+                var buffer: [4096]u8 = undefined;
+                var writer = stdout.writer(&buffer);
+                defer writer.interface.flush() catch {};
+                const out = &writer.interface;
+                try out.writeAll("{\"already_linked\":true,\"child\":");
+                try json.writeTask(out, child);
+                try out.writeAll(",\"parent\":");
+                try json.writeTask(out, parent);
+                try out.writeAll("}\n");
+                return;
+            }
+
+            const options = display.resolveOptions(stdout, no_color);
             try stdout.writeAll("Dependency already exists.\n\n");
             const detail = try display.renderTaskDetail(allocator, child, options);
             defer allocator.free(detail);
@@ -67,6 +106,14 @@ pub fn run(allocator: std.mem.Allocator, stdout: std.fs.File, stderr: std.fs.Fil
     allocator.free(test_dep);
 
     if (has_cycle) {
+        if (use_json) {
+            var buffer: [256]u8 = undefined;
+            var writer = stdout.writer(&buffer);
+            defer writer.interface.flush() catch {};
+            const out = &writer.interface;
+            try json.writeError(out, "Adding this dependency would create a cycle");
+            return error.CycleDetected;
+        }
         try stderr.writeAll("Error: Adding this dependency would create a cycle\n");
         return error.CycleDetected;
     }
@@ -77,6 +124,21 @@ pub fn run(allocator: std.mem.Allocator, stdout: std.fs.File, stderr: std.fs.Fil
     try task_store.updateBlockedBy();
 
     try store.saveTasks(allocator, &task_store);
+
+    if (use_json) {
+        var buffer: [4096]u8 = undefined;
+        var writer = stdout.writer(&buffer);
+        defer writer.interface.flush() catch {};
+        const out = &writer.interface;
+        try out.writeAll("{\"already_linked\":false,\"child\":");
+        try json.writeTask(out, child);
+        try out.writeAll(",\"parent\":");
+        try json.writeTask(out, parent);
+        try out.writeAll("}\n");
+        return;
+    }
+
+    const options = display.resolveOptions(stdout, no_color);
 
     const msg = try std.fmt.allocPrint(allocator, "Added dependency:\n  {s} → {s}\n\n", .{ child_id_value, parent_id_value });
     defer allocator.free(msg);
