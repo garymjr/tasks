@@ -34,7 +34,7 @@ pub fn run(allocator: std.mem.Allocator, stdout: std.fs.File, stderr: std.fs.Fil
                 const help = try command.helpFor(allocator, argv);
                 defer allocator.free(help);
                 try stdout.writeAll(help);
-                return;
+                std.process.exit(0);
             },
             argparse.Error.UnknownCommand,
             argparse.Error.UnknownArgument,
@@ -48,9 +48,18 @@ pub fn run(allocator: std.mem.Allocator, stdout: std.fs.File, stderr: std.fs.Fil
                 defer allocator.free(message);
                 try stderr.writeAll(message);
                 try stderr.writeAll("\n");
-                return err;
+                std.process.exit(1);
             },
-            else => return err,
+            else => {
+                if (handleCommandError(err, stderr)) {
+                    std.process.exit(1);
+                }
+
+                const msg = try std.fmt.allocPrint(allocator, "Error: {s}\n", .{@errorName(err)});
+                defer allocator.free(msg);
+                try stderr.writeAll(msg);
+                std.process.exit(1);
+            },
         }
     };
 }
@@ -100,6 +109,42 @@ fn buildCommand() argparse.Command {
             .{ .name = "stats", .help = "Show statistics", .args = commands.stats.args[0..], .handler = handleStats },
         },
     };
+}
+
+fn handleCommandError(err: anyerror, stderr: std.fs.File) bool {
+    switch (err) {
+        error.AlreadyInitialized,
+        error.InitFailed,
+        error.TaskNotFound,
+        error.TagNotFound,
+        error.DependencyNotFound,
+        error.SelfDependency,
+        error.CycleDetected,
+        error.HasDependents,
+        error.NoReadyTasks,
+        => return true,
+        error.FileNotFound => {
+            stderr.writeAll("Error: No tasks repository found. Run `tasks init`.\n") catch {};
+            return true;
+        },
+        error.InvalidJson => {
+            stderr.writeAll("Error: Tasks data is invalid. Fix `.tasks/tasks.json` or re-init.\n") catch {};
+            return true;
+        },
+        error.LockFailed => {
+            stderr.writeAll("Error: Failed to acquire tasks lock.\n") catch {};
+            return true;
+        },
+        error.ReadFailed => {
+            stderr.writeAll("Error: Failed to read tasks data.\n") catch {};
+            return true;
+        },
+        error.WriteFailed => {
+            stderr.writeAll("Error: Failed to write tasks data.\n") catch {};
+            return true;
+        },
+        else => return false,
+    }
 }
 
 fn handleInit(parser: *argparse.Parser, argv: []const []const u8) anyerror!void {
