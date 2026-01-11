@@ -113,7 +113,7 @@ fn writeReverseTreeNode(writer: anytype, allocator: std.mem.Allocator, store: *T
 pub fn statusSymbol(status: model.Status) []const u8 {
     return switch (status) {
         .todo => "○",
-        .in_progress => "◐",
+        .in_progress => "◉",
         .done => "✓",
         .blocked => "⊗",
     };
