@@ -36,10 +36,12 @@
             .url = "https://github.com/garymjr/argparse/archive/refs/heads/main.tar.gz",
             .hash = "argparse-0.0.0-QjWSOm0iAgAFm5u1-XekgU_tbaYftteZn6QWPQSJEBii",
         },
+        .tasks_core = .{ .path = "packages/tasks-core" },
     },
     .paths = .{
         "build.zig",
         "build.zig.zon",
+        "packages",
         "src",
         // For example...
         //"LICENSE",

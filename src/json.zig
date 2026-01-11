@@ -1,5 +1,5 @@
 const std = @import("std");
-const model = @import("model.zig");
+const model = @import("tasks-core").model;
 
 pub fn writeJsonString(writer: anytype, value: []const u8) !void {
     try writer.writeByte('"');

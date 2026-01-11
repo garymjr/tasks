@@ -1,8 +1,9 @@
 const std = @import("std");
-const model = @import("model.zig");
+const core = @import("tasks-core");
+const model = core.model;
 const Task = model.Task;
 const formatUuid = model.formatUuid;
-const time = @import("time.zig");
+const time = core.time;
 
 pub const Color = enum {
     reset,

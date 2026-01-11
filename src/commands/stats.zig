@@ -1,6 +1,6 @@
 const std = @import("std");
 const argparse = @import("argparse");
-const model = @import("../model.zig");
+const model = @import("tasks-core").model;
 const TaskStore = model.TaskStore;
 const Status = model.Status;
 const Priority = model.Priority;

@@ -1,10 +1,10 @@
 const std = @import("std");
 const argparse = @import("argparse");
-const graph = @import("../graph.zig");
+const graph = @import("tasks-core").graph;
 const store = @import("../store.zig");
 const display = @import("../display.zig");
 const json = @import("../json.zig");
-const model = @import("../model.zig");
+const model = @import("tasks-core").model;
 
 const GraphError = error{
     NotInitialized,

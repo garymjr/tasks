@@ -1,8 +1,12 @@
 //! Tasks library - Task management with dependencies, priorities, and tags.
+const core = @import("tasks-core");
+
 pub const cli = @import("cli.zig");
-pub const deps = @import("deps.zig");
 pub const json = @import("json.zig");
-pub const model = @import("model.zig");
-pub const time = @import("time.zig");
 pub const utils = @import("utils.zig");
-pub const uuid = @import("uuid.zig");
+
+pub const deps = core.deps;
+pub const graph = core.graph;
+pub const model = core.model;
+pub const time = core.time;
+pub const uuid = core.uuid;

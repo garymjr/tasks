@@ -20,6 +20,7 @@ pub fn build(b: *std.Build) void {
         .target = target,
         .optimize = optimize,
     });
+    const tasks_core_dep = b.dependency("tasks_core", .{});
     // It's also possible to define more custom flags to toggle optional features
     // of this build script using `b.option()`. All defined flags (including
     // target and optimize options) will be listed when running `zig build --help`
@@ -45,6 +46,7 @@ pub fn build(b: *std.Build) void {
         .target = target,
     });
     mod.addImport("argparse", argparse_dep.module("argparse"));
+    mod.addImport("tasks-core", tasks_core_dep.module("tasks-core"));
 
     // Here we define an executable. An executable needs to have a root module
     // which needs to expose a `main` function. While we could add a main function
@@ -85,6 +87,7 @@ pub fn build(b: *std.Build) void {
                 // importing modules from different packages).
                 .{ .name = "tasks", .module = mod },
                 .{ .name = "argparse", .module = argparse_dep.module("argparse") },
+                .{ .name = "tasks-core", .module = tasks_core_dep.module("tasks-core") },
             },
         }),
     });

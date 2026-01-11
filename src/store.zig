@@ -1,5 +1,5 @@
 const std = @import("std");
-const model = @import("model.zig");
+const model = @import("tasks-core").model;
 const Task = model.Task;
 const TaskStore = model.TaskStore;
 const Uuid = model.Uuid;
