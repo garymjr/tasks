@@ -20,6 +20,10 @@ pub fn build(b: *std.Build) void {
         .target = target,
         .optimize = optimize,
     });
+    const tasks_cli_dep = b.dependency("tasks_cli", .{
+        .target = target,
+        .optimize = optimize,
+    });
     const tasks_core_dep = b.dependency("tasks_core", .{});
     const tasks_render_dep = b.dependency("tasks_render", .{});
     const tasks_store_json_dep = b.dependency("tasks_store_json", .{});
@@ -35,22 +39,7 @@ pub fn build(b: *std.Build) void {
     // to our consumers. We must give it a name because a Zig package can expose
     // multiple modules and consumers will need to be able to specify which
     // module they want to access.
-    const mod = b.addModule("tasks", .{
-        // The root source file is the "entry point" of this module. Users of
-        // this module will only be able to access public declarations contained
-        // in this file, which means that if you have declarations that you
-        // intend to expose to consumers that were defined in other files part
-        // of this module, you will have to make sure to re-export them from
-        // the root file.
-        .root_source_file = b.path("src/root.zig"),
-        // Later on we'll use this module as the root module of a test executable
-        // which requires us to specify a target.
-        .target = target,
-    });
-    mod.addImport("argparse", argparse_dep.module("argparse"));
-    mod.addImport("tasks-core", tasks_core_dep.module("tasks-core"));
-    mod.addImport("tasks-render", tasks_render_dep.module("tasks-render"));
-    mod.addImport("tasks-store-json", tasks_store_json_dep.module("tasks-store-json"));
+    const mod = tasks_cli_dep.module("tasks-cli");
 
     // Here we define an executable. An executable needs to have a root module
     // which needs to expose a `main` function. While we could add a main function
@@ -74,7 +63,7 @@ pub fn build(b: *std.Build) void {
             // b.createModule defines a new module just like b.addModule but,
             // unlike b.addModule, it does not expose the module to consumers of
             // this package, which is why in this case we don't have to give it a name.
-            .root_source_file = b.path("src/main.zig"),
+            .root_source_file = tasks_cli_dep.path("src/main.zig"),
             // Target and optimization levels must be explicitly wired in when
             // defining an executable or library (in the root module), and you
             // can also hardcode a specific target for an executable or library

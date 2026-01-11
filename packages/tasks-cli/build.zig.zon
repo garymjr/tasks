@@ -1,0 +1,19 @@
+.{
+    .name = .tasks_cli,
+    .version = "0.0.0",
+    .minimum_zig_version = "0.15.2",
+    .dependencies = .{
+        .argparse = .{
+            .url = "https://github.com/garymjr/argparse/archive/refs/heads/main.tar.gz",
+            .hash = "argparse-0.0.0-QjWSOm0iAgAFm5u1-XekgU_tbaYftteZn6QWPQSJEBii",
+        },
+        .tasks_core = .{ .path = "../tasks-core" },
+        .tasks_render = .{ .path = "../tasks-render" },
+        .tasks_store_json = .{ .path = "../tasks-store-json" },
+    },
+    .paths = .{
+        "build.zig",
+        "build.zig.zon",
+        "src",
+    },
+}

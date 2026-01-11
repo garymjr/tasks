@@ -36,6 +36,7 @@
             .url = "https://github.com/garymjr/argparse/archive/refs/heads/main.tar.gz",
             .hash = "argparse-0.0.0-QjWSOm0iAgAFm5u1-XekgU_tbaYftteZn6QWPQSJEBii",
         },
+        .tasks_cli = .{ .path = "packages/tasks-cli" },
         .tasks_core = .{ .path = "packages/tasks-core" },
         .tasks_render = .{ .path = "packages/tasks-render" },
         .tasks_store_json = .{ .path = "packages/tasks-store-json" },
@@ -44,7 +45,6 @@
         "build.zig",
         "build.zig.zon",
         "packages",
-        "src",
         // For example...
         //"LICENSE",
         //"README.md",
