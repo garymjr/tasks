@@ -11,16 +11,16 @@ const AddError = error{
     SaveFailed,
 } || store.StorageError || std.fs.File.WriteError;
 
-pub fn run(allocator: std.mem.Allocator, stdout: std.fs.File, argv: []const []const u8) !void {
-    const args = [_]argparse.Arg{
-        .{ .name = "no-color", .long = "no-color", .kind = .flag, .help = "Disable ANSI colors" },
-        .{ .name = "body", .long = "body", .kind = .option, .help = "Task body" },
-        .{ .name = "priority", .long = "priority", .kind = .option, .help = "Task priority", .validator = validatePriority },
-        .{ .name = "tags", .long = "tags", .kind = .option, .help = "Comma-separated tags" },
-        .{ .name = "title", .kind = .positional, .position = 0, .required = true, .help = "Task title" },
-    };
+pub const args = [_]argparse.Arg{
+    .{ .name = "no-color", .long = "no-color", .kind = .flag, .help = "Disable ANSI colors" },
+    .{ .name = "body", .long = "body", .kind = .option, .help = "Task body" },
+    .{ .name = "priority", .long = "priority", .kind = .option, .help = "Task priority", .validator = validatePriority },
+    .{ .name = "tags", .long = "tags", .kind = .option, .help = "Comma-separated tags" },
+    .{ .name = "title", .kind = .positional, .position = 0, .required = true, .help = "Task title" },
+};
 
-    var parser = try argparse.Parser.init(allocator, &args);
+pub fn run(allocator: std.mem.Allocator, stdout: std.fs.File, argv: []const []const u8) !void {
+    var parser = try argparse.Parser.init(allocator, args[0..]);
     defer parser.deinit();
 
     parser.parse(argv) catch |err| {

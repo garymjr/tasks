@@ -10,13 +10,13 @@ const NextError = error{
     NoReadyTasks,
 } || store.StorageError || std.fs.File.WriteError;
 
-pub fn run(allocator: std.mem.Allocator, stdout: std.fs.File, stderr: std.fs.File, argv: []const []const u8) !void {
-    const args = [_]argparse.Arg{
-        .{ .name = "all", .long = "all", .kind = .flag, .help = "Show all ready tasks" },
-        .{ .name = "no-color", .long = "no-color", .kind = .flag, .help = "Disable ANSI colors" },
-    };
+pub const args = [_]argparse.Arg{
+    .{ .name = "all", .long = "all", .kind = .flag, .help = "Show all ready tasks" },
+    .{ .name = "no-color", .long = "no-color", .kind = .flag, .help = "Disable ANSI colors" },
+};
 
-    var parser = try argparse.Parser.init(allocator, &args);
+pub fn run(allocator: std.mem.Allocator, stdout: std.fs.File, stderr: std.fs.File, argv: []const []const u8) !void {
+    var parser = try argparse.Parser.init(allocator, args[0..]);
     defer parser.deinit();
 
     parser.parse(argv) catch |err| {

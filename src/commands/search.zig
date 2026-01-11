@@ -10,13 +10,13 @@ const SearchError = error{
     LoadFailed,
 } || store.StorageError;
 
-pub fn run(allocator: std.mem.Allocator, stdout: std.fs.File, stderr: std.fs.File, argv: []const []const u8) !void {
-    const args = [_]argparse.Arg{
-        .{ .name = "no-color", .long = "no-color", .kind = .flag, .help = "Disable ANSI colors" },
-        .{ .name = "query", .kind = .positional, .position = 0, .required = true, .help = "Search query" },
-    };
+pub const args = [_]argparse.Arg{
+    .{ .name = "no-color", .long = "no-color", .kind = .flag, .help = "Disable ANSI colors" },
+    .{ .name = "query", .kind = .positional, .position = 0, .required = true, .help = "Search query" },
+};
 
-    var parser = try argparse.Parser.init(allocator, &args);
+pub fn run(allocator: std.mem.Allocator, stdout: std.fs.File, stderr: std.fs.File, argv: []const []const u8) !void {
+    var parser = try argparse.Parser.init(allocator, args[0..]);
     defer parser.deinit();
 
     parser.parse(argv) catch |err| {

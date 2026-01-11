@@ -12,12 +12,12 @@ const DeleteError = error{
     SaveFailed,
 } || store.StorageError;
 
-pub fn run(allocator: std.mem.Allocator, stdout: std.fs.File, stderr: std.fs.File, argv: []const []const u8) !void {
-    const args = [_]argparse.Arg{
-        .{ .name = "id", .kind = .positional, .position = 0, .required = true, .help = "Task ID" },
-    };
+pub const args = [_]argparse.Arg{
+    .{ .name = "id", .kind = .positional, .position = 0, .required = true, .help = "Task ID" },
+};
 
-    var parser = try argparse.Parser.init(allocator, &args);
+pub fn run(allocator: std.mem.Allocator, stdout: std.fs.File, stderr: std.fs.File, argv: []const []const u8) !void {
+    var parser = try argparse.Parser.init(allocator, args[0..]);
     defer parser.deinit();
 
     parser.parse(argv) catch |err| {

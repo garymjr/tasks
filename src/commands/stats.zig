@@ -32,14 +32,14 @@ const Stats = struct {
     }
 };
 
+pub const args = [_]argparse.Arg{
+    .{ .name = "no-color", .long = "no-color", .kind = .flag, .help = "Disable ANSI colors" },
+};
+
 pub fn run(allocator: std.mem.Allocator, stdout: std.fs.File, argv: []const []const u8) !void {
     const store = @import("../store.zig");
 
-    const args = [_]argparse.Arg{
-        .{ .name = "no-color", .long = "no-color", .kind = .flag, .help = "Disable ANSI colors" },
-    };
-
-    var parser = try argparse.Parser.init(allocator, &args);
+    var parser = try argparse.Parser.init(allocator, args[0..]);
     defer parser.deinit();
 
     parser.parse(argv) catch |err| {
