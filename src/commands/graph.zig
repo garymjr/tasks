@@ -4,6 +4,7 @@ const graph = @import("../graph.zig");
 const store = @import("../store.zig");
 const display = @import("../display.zig");
 const json = @import("../json.zig");
+const model = @import("../model.zig");
 
 const GraphError = error{
     NotInitialized,
@@ -40,12 +41,6 @@ pub fn run(allocator: std.mem.Allocator, stdout: std.fs.File, stderr: std.fs.Fil
         return error.TaskNotFound;
     };
 
-    const tree = if (show_reverse)
-        try graph.renderReverseTree(allocator, &task_store, task.id)
-    else
-        try graph.renderTree(allocator, &task_store, task.id);
-    defer allocator.free(tree);
-
     const cycle_detected = task_store.hasCycle(task.id);
 
     if (use_json) {
@@ -54,7 +49,7 @@ pub fn run(allocator: std.mem.Allocator, stdout: std.fs.File, stderr: std.fs.Fil
         defer writer.interface.flush() catch {};
         const out = &writer.interface;
         try out.writeAll("{\"tree\":");
-        try json.writeJsonString(out, tree);
+        try writeGraphTreeJson(out, &task_store, task, show_reverse);
         try out.writeAll(",\"root\":");
         try json.writeTask(out, task);
         try out.writeAll(",\"cycle_detected\":");
@@ -62,6 +57,12 @@ pub fn run(allocator: std.mem.Allocator, stdout: std.fs.File, stderr: std.fs.Fil
         try out.writeAll("}\n");
         return;
     }
+
+    const tree = if (show_reverse)
+        try graph.renderReverseTree(allocator, &task_store, task.id)
+    else
+        try graph.renderTree(allocator, &task_store, task.id);
+    defer allocator.free(tree);
 
     try stdout.writeAll(tree);
 
@@ -76,4 +77,64 @@ pub fn run(allocator: std.mem.Allocator, stdout: std.fs.File, stderr: std.fs.Fil
     if (cycle_detected) {
         try stdout.writeAll("\n⚠️  Warning: Cycle detected in dependency tree!\n");
     }
+}
+
+fn writeGraphTreeJson(writer: anytype, task_store: *model.TaskStore, task: *const model.Task, show_reverse: bool) !void {
+    const id_str = model.formatUuid(task.id);
+    try writer.writeAll("{\"id\":");
+    try json.writeJsonString(writer, &id_str);
+    try writer.writeAll(",\"missing\":false,\"title\":");
+    try json.writeJsonString(writer, task.title);
+    try writer.writeAll(",\"status\":");
+    try json.writeJsonString(writer, @tagName(task.status));
+    try writer.writeAll(",\"children\":[");
+
+    const deps = if (show_reverse) task.blocked_by.items else task.dependencies.items;
+    var first_child = true;
+
+    for (deps) |dep_str| {
+        const trimmed = dep_str[0..@min(dep_str.len, 36)];
+        const dep_id = model.parseUuid(trimmed) catch continue;
+
+        if (!first_child) {
+            try writer.writeAll(",");
+        }
+        first_child = false;
+
+        const dep = task_store.findByUuid(dep_id) orelse {
+            try writeMissingGraphNodeJson(writer, trimmed);
+            continue;
+        };
+
+        try writeGraphTreeJson(writer, task_store, dep, show_reverse);
+    }
+
+    try writer.writeAll("]}");
+}
+
+fn writeMissingGraphNodeJson(writer: anytype, id_str: []const u8) !void {
+    try writer.writeAll("{\"id\":");
+    try json.writeJsonString(writer, id_str);
+    try writer.writeAll(",\"missing\":true,\"title\":null,\"status\":null,\"children\":[]}");
+}
+
+test "graph json output excludes ascii tree" {
+    const allocator = std.testing.allocator;
+    var task_store = model.TaskStore.init(allocator);
+    defer task_store.deinit();
+
+    const root = try task_store.create("Root");
+    const child = try task_store.create("Child");
+    const child_id = model.uuidToString(child.id);
+
+    try root.dependencies.append(allocator, try allocator.dupe(u8, &child_id));
+
+    var buffer = std.ArrayList(u8).init(allocator);
+    defer buffer.deinit();
+
+    try writeGraphTreeJson(buffer.writer(), &task_store, root, false);
+
+    try std.testing.expect(std.mem.indexOf(u8, buffer.items, "└") == null);
+    try std.testing.expect(std.mem.indexOf(u8, buffer.items, "├") == null);
+    try std.testing.expect(std.mem.indexOf(u8, buffer.items, "│") == null);
 }
