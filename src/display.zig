@@ -101,6 +101,50 @@ fn writeBorder(writer: anytype, left: []const u8, mid: []const u8, right: []cons
     try writer.writeAll("\n");
 }
 
+fn sanitizedLen(text: []const u8) usize {
+    var count: usize = 0;
+    for (text) |ch| {
+        if (ch < 0x20 or ch == 0x7f) {
+            count += 1;
+        } else {
+            count += 1;
+        }
+    }
+    return count;
+}
+
+fn sanitizeTruncateTitle(buf: []u8, text: []const u8, max_len: usize) []const u8 {
+    if (max_len == 0) return buf[0..0];
+
+    const total_len = sanitizedLen(text);
+    if (total_len <= max_len) {
+        var i: usize = 0;
+        for (text) |ch| {
+            if (i >= max_len) break;
+            buf[i] = if (ch < 0x20 or ch == 0x7f) ' ' else ch;
+            i += 1;
+        }
+        return buf[0..i];
+    }
+
+    if (max_len <= 3) {
+        for (0..max_len) |i| {
+            buf[i] = '.';
+        }
+        return buf[0..max_len];
+    }
+
+    const keep = max_len - 3;
+    var i: usize = 0;
+    for (text) |ch| {
+        if (i >= keep) break;
+        buf[i] = if (ch < 0x20 or ch == 0x7f) ' ' else ch;
+        i += 1;
+    }
+    @memcpy(buf[keep .. keep + 3], "...");
+    return buf[0..max_len];
+}
+
 fn statusColor(status: model.Status) Color {
     return switch (status) {
         .todo => .yellow,
@@ -135,7 +179,8 @@ pub fn renderTaskTable(allocator: std.mem.Allocator, tasks: []const *Task, optio
 
     var title_width: usize = 5;
     for (tasks) |task| {
-        title_width = @max(title_width, @min(task.title.len, max_title_width));
+        const visible_len = sanitizedLen(task.title);
+        title_width = @max(title_width, @min(visible_len, max_title_width));
     }
 
     const widths = [_]usize{ id_width, status_width, priority_width, title_width };
@@ -168,7 +213,7 @@ pub fn renderTaskTable(allocator: std.mem.Allocator, tasks: []const *Task, optio
         });
 
         var title_buf: [40]u8 = undefined;
-        const title = utils.truncateWithEllipsis(&title_buf, task.title, title_width);
+        const title = sanitizeTruncateTitle(&title_buf, task.title, title_width);
 
         try writer.writeAll("│ ");
         try writePadded(writer, id_str, id_width);
@@ -303,6 +348,21 @@ test "render task table" {
     defer allocator.free(output);
 
     try testing.expect(std.mem.indexOf(u8, output, "Test task") != null);
+}
+
+test "render task table sanitizes title newlines" {
+    const testing = std.testing;
+    const allocator = testing.allocator;
+
+    var task = try Task.init(allocator, "Quote \"test\"\nLine");
+    defer task.deinit(allocator);
+
+    var tasks = [_]*Task{&task};
+    const output = try renderTaskTable(allocator, &tasks, .{ .use_color = false });
+    defer allocator.free(output);
+
+    try testing.expect(std.mem.indexOf(u8, output, "Quote \"test\" Line") != null);
+    try testing.expect(std.mem.indexOf(u8, output, "\"test\"\nLine") == null);
 }
 
 test "render task detail" {
