@@ -67,6 +67,25 @@ fn writeRepeated(writer: anytype, value: []const u8, count: usize) !void {
     }
 }
 
+fn writeEscapedControl(writer: anytype, text: []const u8) !void {
+    for (text) |ch| {
+        switch (ch) {
+            '\n' => try writer.writeAll("\\n"),
+            '\r' => try writer.writeAll("\\r"),
+            '\t' => try writer.writeAll("\\t"),
+            else => {
+                if (ch < 0x20 or ch == 0x7f) {
+                    var buf: [4]u8 = undefined;
+                    const escaped = try std.fmt.bufPrint(&buf, "\\x{X:0>2}", .{ch});
+                    try writer.writeAll(escaped);
+                } else {
+                    try writer.writeByte(ch);
+                }
+            },
+        }
+    }
+}
+
 fn textWidth(text: []const u8) usize {
     return std.unicode.utf8CountCodepoints(text) catch text.len;
 }
@@ -238,7 +257,9 @@ pub fn renderTaskDetail(allocator: std.mem.Allocator, task: *const Task, options
     const id_str = formatUuid(task.id);
 
     try writer.print("ID:          {s}\n", .{id_str});
-    try writer.print("Title:       {s}\n", .{task.title});
+    try writer.writeAll("Title:       ");
+    try writeEscapedControl(writer, task.title);
+    try writer.writeAll("\n");
     try writer.writeAll("Status:      ");
     try writeStyledFmt(writer, options, statusColor(task.status), "{s} {s}", .{
         statusSymbol(task.status),
@@ -260,7 +281,7 @@ pub fn renderTaskDetail(allocator: std.mem.Allocator, task: *const Task, options
         try writer.writeAll("Tags:        ");
         for (task.tags.items, 0..) |tag, i| {
             if (i > 0) try writer.writeAll(", ");
-            try writer.writeAll(tag);
+            try writeEscapedControl(writer, tag);
         }
         try writer.writeAll("\n");
     }
@@ -378,4 +399,22 @@ test "render task detail" {
     try testing.expect(std.mem.indexOf(u8, output, "Test task") != null);
     try testing.expect(std.mem.indexOf(u8, output, "Status:") != null);
     try testing.expect(std.mem.indexOf(u8, output, "Priority:") != null);
+}
+
+test "render task detail escapes control chars in title and tags" {
+    const testing = std.testing;
+    const allocator = testing.allocator;
+
+    var task = try Task.init(allocator, "Quote \"test\"\nLine");
+    defer task.deinit(allocator);
+    try task.tags.append(allocator, try allocator.dupe(u8, "tag\"1"));
+    try task.tags.append(allocator, try allocator.dupe(u8, "tag\n2"));
+
+    const output = try renderTaskDetail(allocator, &task, .{ .use_color = false });
+    defer allocator.free(output);
+
+    try testing.expect(std.mem.indexOf(u8, output, "Quote \"test\"\\nLine") != null);
+    try testing.expect(std.mem.indexOf(u8, output, "\"test\"\nLine") == null);
+    try testing.expect(std.mem.indexOf(u8, output, "Tags:        tag\"1, tag\\n2") != null);
+    try testing.expect(std.mem.indexOf(u8, output, "tag\n2") == null);
 }
