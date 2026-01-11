@@ -1,7 +1,7 @@
 const std = @import("std");
 const argparse = @import("argparse");
 const model = @import("tasks-core").model;
-const store = @import("../store.zig");
+const store = @import("tasks-store-json");
 const json = @import("../json.zig");
 
 const DeleteError = error{

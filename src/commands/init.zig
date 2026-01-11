@@ -1,6 +1,6 @@
 const std = @import("std");
 const argparse = @import("argparse");
-const store = @import("../store.zig");
+const store = @import("tasks-store-json");
 
 const InitError = error{
     AlreadyInitialized,

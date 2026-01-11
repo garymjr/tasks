@@ -1,0 +1,13 @@
+.{
+    .name = .tasks_render,
+    .version = "0.0.0",
+    .minimum_zig_version = "0.15.2",
+    .dependencies = .{
+        .tasks_core = .{ .path = "../tasks-core" },
+    },
+    .paths = .{
+        "build.zig",
+        "build.zig.zon",
+        "src",
+    },
+}

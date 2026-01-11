@@ -4,7 +4,7 @@ const model = @import("tasks-core").model;
 const TaskStore = model.TaskStore;
 const Status = model.Status;
 const Priority = model.Priority;
-const display = @import("../display.zig");
+const display = @import("tasks-render");
 const json = @import("../json.zig");
 
 const Stats = struct {
@@ -38,7 +38,7 @@ pub const args = [_]argparse.Arg{
 };
 
 pub fn run(allocator: std.mem.Allocator, stdout: std.fs.File, parser: *argparse.Parser) !void {
-    const store = @import("../store.zig");
+    const store = @import("tasks-store-json");
 
     const no_color = parser.getFlag("no-color");
     const use_json = parser.getFlag("json");

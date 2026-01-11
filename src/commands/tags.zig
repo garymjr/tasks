@@ -1,7 +1,7 @@
 const std = @import("std");
 const argparse = @import("argparse");
-const store = @import("../store.zig");
-const display = @import("../display.zig");
+const store = @import("tasks-store-json");
+const display = @import("tasks-render");
 const json = @import("../json.zig");
 
 const TagsError = error{

@@ -1,8 +1,8 @@
 const std = @import("std");
 const argparse = @import("argparse");
 const graph = @import("tasks-core").graph;
-const store = @import("../store.zig");
-const display = @import("../display.zig");
+const store = @import("tasks-store-json");
+const display = @import("tasks-render");
 const json = @import("../json.zig");
 const model = @import("tasks-core").model;
 
