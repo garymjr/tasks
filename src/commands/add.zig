@@ -90,7 +90,6 @@ fn validatePriority(value: []const u8) anyerror!void {
     _ = try parsePriority(value);
 }
 
-
 test "add creates task" {
     const testing = std.testing;
     const allocator = testing.allocator;

@@ -61,4 +61,3 @@ pub fn run(allocator: std.mem.Allocator, stdout: std.fs.File, stderr: std.fs.Fil
     defer allocator.free(output);
     try stdout.writeAll(output);
 }
-

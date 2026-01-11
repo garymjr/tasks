@@ -2,7 +2,7 @@ const std = @import("std");
 const model = @import("model.zig");
 const Task = model.Task;
 const formatUuid = model.formatUuid;
-const utils = @import("utils.zig");
+const time = @import("time.zig");
 
 pub const Color = enum {
     reset,
@@ -298,18 +298,18 @@ pub fn renderTaskDetail(allocator: std.mem.Allocator, task: *const Task, options
     }
 
     try writer.writeAll("Created:     ");
-    try utils.formatRelativeToWriter(writer, task.created_at);
+    try time.formatRelativeToWriter(writer, task.created_at);
     try writer.writeAll("\n");
 
     if (task.updated_at != task.created_at) {
         try writer.writeAll("Updated:     ");
-        try utils.formatRelativeToWriter(writer, task.updated_at);
+        try time.formatRelativeToWriter(writer, task.updated_at);
         try writer.writeAll("\n");
     }
 
     if (task.completed_at) |completed| {
         try writer.writeAll("Completed:   ");
-        try utils.formatRelativeToWriter(writer, completed);
+        try time.formatRelativeToWriter(writer, completed);
         try writer.writeAll("\n");
     }
 

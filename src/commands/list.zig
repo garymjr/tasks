@@ -109,7 +109,6 @@ fn validatePriority(value: []const u8) anyerror!void {
     _ = try parsePriority(value);
 }
 
-
 test "list filters by status" {
     const testing = std.testing;
     const allocator = testing.allocator;

@@ -25,7 +25,6 @@ pub fn renderTree(allocator: std.mem.Allocator, store: *TaskStore, task_id: mode
 }
 
 fn writeTreeNode(writer: anytype, allocator: std.mem.Allocator, store: *TaskStore, task: *const Task, prefix: []const u8, is_last: bool) !void {
-
     const connector = if (is_last) "└── " else "├── ";
     const id_str = formatUuid(task.id)[0..8];
 
@@ -76,7 +75,6 @@ pub fn renderReverseTree(allocator: std.mem.Allocator, store: *TaskStore, task_i
 }
 
 fn writeReverseTreeNode(writer: anytype, allocator: std.mem.Allocator, store: *TaskStore, task: *const Task, prefix: []const u8, is_last: bool) !void {
-
     const id_str = formatUuid(task.id)[0..8];
 
     try writer.print("{s}{s}{s} [{s}] {s}\n", .{

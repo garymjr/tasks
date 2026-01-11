@@ -44,7 +44,6 @@ pub fn run(allocator: std.mem.Allocator, stdout: std.fs.File, parser: *argparse.
     try stdout.writeAll("Initialized tasks repository in .tasks/\n");
 }
 
-
 test "init creates directory" {
     const testing = std.testing;
     const allocator = testing.allocator;

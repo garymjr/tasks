@@ -96,4 +96,3 @@ pub fn run(allocator: std.mem.Allocator, stdout: std.fs.File, parser: *argparse.
         try out.writeAll("\n");
     }
 }
-

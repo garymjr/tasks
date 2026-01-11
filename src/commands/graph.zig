@@ -77,4 +77,3 @@ pub fn run(allocator: std.mem.Allocator, stdout: std.fs.File, stderr: std.fs.Fil
         try stdout.writeAll("\n⚠️  Warning: Cycle detected in dependency tree!\n");
     }
 }
-

@@ -112,4 +112,3 @@ fn compareTasks(context: void, a: *const Task, b: *const Task) bool {
 
     return a.created_at < b.created_at;
 }
-

@@ -5,7 +5,6 @@ const TaskStore = model.TaskStore;
 const Status = model.Status;
 const Priority = model.Priority;
 const display = @import("../display.zig");
-const utils = @import("../utils.zig");
 const json = @import("../json.zig");
 
 const Stats = struct {
@@ -291,7 +290,6 @@ fn renderStats(stdout: std.fs.File, stats: *const Stats, completion_rate: f64, o
 
     try out.writeAll("\n");
 }
-
 
 test "calculate stats" {
     const testing = std.testing;

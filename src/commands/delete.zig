@@ -106,7 +106,6 @@ pub fn run(allocator: std.mem.Allocator, stdout: std.fs.File, stderr: std.fs.Fil
     try stdout.writeAll(msg);
 }
 
-
 test "delete removes task" {
     const testing = std.testing;
     const allocator = testing.allocator;

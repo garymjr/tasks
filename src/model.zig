@@ -1,36 +1,17 @@
 const std = @import("std");
+const deps = @import("deps.zig");
+const uuid = @import("uuid.zig");
 
 const ArrayListUnmanaged = std.array_list.Aligned;
 
 pub const Status = enum { todo, in_progress, done, blocked };
 pub const Priority = enum { low, medium, high, critical };
 
-pub const Uuid = struct {
-    data: [16]u8,
-};
-
-pub fn formatUuid(uuid: Uuid) [36]u8 {
-    var result: [36]u8 = undefined;
-    const d = uuid.data;
-    const hex = "0123456789abcdef";
-
-    var idx: usize = 0;
-    for (d, 0..) |byte, i| {
-        result[idx] = hex[byte >> 4];
-        result[idx + 1] = hex[byte & 0x0F];
-        idx += 2;
-        if (i == 3 or i == 5 or i == 7 or i == 9) {
-            result[idx] = '-';
-            idx += 1;
-        }
-    }
-
-    return result;
-}
-
-pub fn uuidToString(uuid: Uuid) [36]u8 {
-    return formatUuid(uuid);
-}
+pub const Uuid = uuid.Uuid;
+pub const formatUuid = uuid.formatUuid;
+pub const uuidToString = uuid.uuidToString;
+pub const generateUuid = uuid.generateUuid;
+pub const parseUuid = uuid.parseUuid;
 
 pub const Task = struct {
     id: Uuid,
@@ -216,115 +197,25 @@ pub const TaskStore = struct {
     }
 
     pub fn updateBlockedBy(self: *TaskStore) !void {
-        for (self.tasks.items) |task| {
-            for (task.blocked_by.items) |blocked| {
-                self.allocator.free(blocked);
-            }
-            task.blocked_by.clearRetainingCapacity();
-        }
-
-        for (self.tasks.items) |task| {
-            for (task.dependencies.items) |dep_str| {
-                const dep_id = parseUuid(dep_str[0..36]) catch continue;
-                const dep = self.findByUuid(dep_id) orelse continue;
-                const id_str = formatUuid(task.id);
-                try dep.blocked_by.append(self.allocator, try self.allocator.dupe(u8, &id_str));
-            }
-        }
+        return deps.updateBlockedBy(self);
     }
 
     pub fn hasCycle(self: *TaskStore, start_id: Uuid) bool {
-        var visited = std.AutoHashMap(Uuid, u8).init(self.allocator);
-        defer visited.deinit();
-        var in_stack = std.AutoHashMap(Uuid, u8).init(self.allocator);
-        defer in_stack.deinit();
-        return hasCycleDfs(self, start_id, &visited, &in_stack);
+        return deps.hasCycle(self, start_id);
     }
 
     pub fn isReady(self: *TaskStore, task: Task) bool {
-        for (task.dependencies.items) |dep_str| {
-            const dep_id = parseUuid(dep_str[0..36]) catch continue;
-            const dep = self.findByUuid(dep_id) orelse continue;
-            if (dep.status != .done) return false;
-        }
-        return true;
+        return deps.isReady(self, task);
     }
 
     pub fn getReadyTasks(self: *TaskStore) ArrayListUnmanaged(*Task, null) {
-        var result = ArrayListUnmanaged(*Task, null){};
-        for (self.tasks.items) |task| {
-            if (task.status == .todo and self.isReady(task.*)) {
-                result.append(self.allocator, task) catch {};
-            }
-        }
-        return result;
+        return deps.getReadyTasks(self);
     }
 
     pub fn getBlockedTasks(self: *TaskStore) ArrayListUnmanaged(*Task, null) {
-        var result = ArrayListUnmanaged(*Task, null){};
-        for (self.tasks.items) |task| {
-            if (task.dependencies.items.len > 0 and !self.isReady(task.*)) {
-                result.append(self.allocator, task) catch {};
-            }
-        }
-        return result;
+        return deps.getBlockedTasks(self);
     }
 };
-
-fn hasCycleDfs(store: *TaskStore, task_id: Uuid, visited: *std.AutoHashMap(Uuid, u8), in_stack: *std.AutoHashMap(Uuid, u8)) bool {
-    if (in_stack.get(task_id)) |_| return true;
-    if (visited.get(task_id)) |_| return false;
-    visited.put(task_id, 1) catch {};
-    in_stack.put(task_id, 1) catch {};
-
-    const task = store.findByUuid(task_id) orelse {
-        _ = in_stack.remove(task_id);
-        return false;
-    };
-
-    for (task.dependencies.items) |dep_str| {
-        const dep_id = parseUuid(dep_str[0..36]) catch continue;
-        if (hasCycleDfs(store, dep_id, visited, in_stack)) return true;
-    }
-
-    _ = in_stack.remove(task_id);
-    return false;
-}
-
-pub fn generateUuid() Uuid {
-    var random_bytes: [16]u8 = undefined;
-    std.crypto.random.bytes(&random_bytes);
-
-    random_bytes[6] = (random_bytes[6] & 0x0F) | 0x40;
-    random_bytes[8] = (random_bytes[8] & 0x3F) | 0x80;
-
-    return Uuid{ .data = random_bytes };
-}
-
-pub fn parseUuid(str: []const u8) !Uuid {
-    if (str.len < 36) return error.InvalidUuid;
-
-    var data: [16]u8 = undefined;
-    const hex = "0123456789abcdef";
-    var str_idx: usize = 0;
-
-    inline for (0..16) |i| {
-        if (i == 4 or i == 6 or i == 8 or i == 10) {
-            str_idx += 1;
-        }
-
-        const hi = str[str_idx];
-        const lo = str[str_idx + 1];
-        str_idx += 2;
-
-        const hi_val = std.mem.indexOfScalar(u8, hex[0..], std.ascii.toLower(hi)) orelse return error.InvalidUuid;
-        const lo_val = std.mem.indexOfScalar(u8, hex[0..], std.ascii.toLower(lo)) orelse return error.InvalidUuid;
-
-        data[i] = @as(u8, @intCast(hi_val * 16 + lo_val));
-    }
-
-    return Uuid{ .data = data };
-}
 
 fn toLower(allocator: std.mem.Allocator, str: []const u8) ![]u8 {
     var result = try allocator.alloc(u8, str.len);
@@ -332,22 +223,6 @@ fn toLower(allocator: std.mem.Allocator, str: []const u8) ![]u8 {
         result[i] = if (c >= 'A' and c <= 'Z') c + 32 else c;
     }
     return result;
-}
-
-test "generate uuid" {
-    const uuid1 = generateUuid();
-    const uuid2 = generateUuid();
-    const str1 = uuidToString(uuid1);
-    const str2 = uuidToString(uuid2);
-    try std.testing.expect(!std.mem.eql(u8, &str1, &str2));
-    try std.testing.expect(str1.len == 36);
-}
-
-test "parse uuid" {
-    const uuid = generateUuid();
-    const str = uuidToString(uuid);
-    const parsed = try parseUuid(&str);
-    try std.testing.expect(std.mem.eql(u8, &uuid.data, &parsed.data));
 }
 
 test "task init and deinit" {

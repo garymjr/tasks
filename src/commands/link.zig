@@ -154,4 +154,3 @@ pub fn run(allocator: std.mem.Allocator, stdout: std.fs.File, stderr: std.fs.Fil
     defer allocator.free(parent_detail);
     try stdout.writeAll(parent_detail);
 }
-
