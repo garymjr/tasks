@@ -57,6 +57,15 @@ pub fn truncateWithEllipsis(buf: []u8, str: []const u8, max_len: usize) []const 
     return buf[0..max_len];
 }
 
+pub fn normalizeBody(allocator: std.mem.Allocator, body: ?[]const u8) !?[]const u8 {
+    if (body) |body_value| {
+        const trimmed = std.mem.trim(u8, body_value, " \t\r\n");
+        if (trimmed.len == 0) return null;
+        return try allocator.dupe(u8, body_value);
+    }
+    return null;
+}
+
 test "join strings" {
     const allocator = std.testing.allocator;
 
@@ -99,4 +108,14 @@ test "truncate with ellipsis" {
     const truncated = truncateWithEllipsis(&buf, long, 20);
     try std.testing.expectEqual(@as(usize, 20), truncated.len);
     try std.testing.expect(std.mem.endsWith(u8, truncated, "..."));
+}
+
+test "normalize body keeps content" {
+    const allocator = std.testing.allocator;
+    var buf: [64]u8 = undefined;
+    var stream = std.io.fixedBufferStream(&buf);
+    const result = try normalizeBody(allocator, "Keep");
+    defer if (result) |value| allocator.free(value);
+    try std.testing.expectEqualStrings("Keep", result.?);
+    try std.testing.expectEqualStrings("", stream.getWritten());
 }

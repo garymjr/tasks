@@ -4,6 +4,7 @@ const model = @import("tasks-core").model;
 const store = @import("tasks-store-json");
 const display = @import("tasks-render");
 const json = @import("../json.zig");
+const utils = @import("../utils.zig");
 
 const AddError = error{
     NotInitialized,
@@ -26,6 +27,7 @@ pub fn run(allocator: std.mem.Allocator, stdout: std.fs.File, parser: *argparse.
     const no_color = parser.getFlag("no-color");
     const use_json = parser.getFlag("json");
     const body = parser.getOption("body");
+    const body_hint = body == null or std.mem.trim(u8, body.?, " \t\r\n").len == 0;
 
     var priority: model.Priority = .medium;
     if (parser.getOption("priority")) |priority_str| {
@@ -52,9 +54,7 @@ pub fn run(allocator: std.mem.Allocator, stdout: std.fs.File, parser: *argparse.
     defer task_store.deinit();
 
     const task = try task_store.create(title_value);
-    if (body) |body_value| {
-        task.body = try allocator.dupe(u8, body_value);
-    }
+    task.body = try utils.normalizeBody(allocator, body);
     task.priority = priority;
 
     for (tags.items) |tag| {
@@ -80,6 +80,9 @@ pub fn run(allocator: std.mem.Allocator, stdout: std.fs.File, parser: *argparse.
     const detail = try display.renderTaskDetail(allocator, task, options);
     defer allocator.free(detail);
     try stdout.writeAll(detail);
+    if (body_hint) {
+        try stdout.writeAll("\nHint: add a body to give tasks more context.\n");
+    }
 }
 
 fn parsePriority(value: []const u8) !model.Priority {

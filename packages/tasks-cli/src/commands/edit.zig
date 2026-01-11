@@ -4,6 +4,7 @@ const model = @import("tasks-core").model;
 const store = @import("tasks-store-json");
 const display = @import("tasks-render");
 const json = @import("../json.zig");
+const utils = @import("../utils.zig");
 
 const EditError = error{
     NotInitialized,
@@ -84,11 +85,7 @@ pub fn run(allocator: std.mem.Allocator, stdout: std.fs.File, stderr: std.fs.Fil
         if (task.body) |old_body| {
             allocator.free(old_body);
         }
-        if (body) |body_value| {
-            task.body = try allocator.dupe(u8, body_value);
-        } else {
-            task.body = null;
-        }
+        task.body = try utils.normalizeBody(allocator, body);
         task.updateTimestamp();
     }
 
