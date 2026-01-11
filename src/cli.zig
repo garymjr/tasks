@@ -22,17 +22,8 @@ pub const Command = enum {
     init,
 };
 
-pub fn parse() !Command {
-    var iter = std.process.args();
-    _ = iter.skip();
-
-    const cmd_str = iter.next() orelse {
-        return .help;
-    };
-
-    return std.meta.stringToEnum(Command, cmd_str) orelse {
-        return error.UnknownCommand;
-    };
+pub fn parse(argv: []const []const u8) !Command {
+    return parseWithArgs(argv);
 }
 
 pub fn printHelp(stdout: std.fs.File) !void {
@@ -77,11 +68,11 @@ pub fn printHelp(stdout: std.fs.File) !void {
 }
 
 test "parse help" {
-    try std.testing.expectEqual(Command.help, parse());
+    try std.testing.expectEqual(Command.help, parseWithArgs(&[_][]const u8{"tasks"}));
 }
 
 test "parse list" {
-    try std.testing.expectEqual(Command.list, parse());
+    try std.testing.expectEqual(Command.list, parseWithArgs(&[_][]const u8{"tasks", "list"}));
 }
 
 test "parse invalid" {

@@ -1,4 +1,5 @@
 const std = @import("std");
+const argparse = @import("argparse");
 const model = @import("../model.zig");
 const TaskStore = model.TaskStore;
 const Status = model.Status;
@@ -31,19 +32,23 @@ const Stats = struct {
     }
 };
 
-pub fn run(allocator: std.mem.Allocator, stdout: std.fs.File) !void {
+pub fn run(allocator: std.mem.Allocator, stdout: std.fs.File, argv: []const []const u8) !void {
     const store = @import("../store.zig");
 
-    var iter = std.process.args();
-    _ = iter.skip();
-    _ = iter.skip();
+    const args = [_]argparse.Arg{
+        .{ .name = "no-color", .long = "no-color", .kind = .flag, .help = "Disable ANSI colors" },
+    };
 
-    var no_color = false;
-    while (iter.next()) |arg| {
-        if (std.mem.eql(u8, arg, "--no-color")) {
-            no_color = true;
-        }
-    }
+    var parser = try argparse.Parser.init(allocator, &args);
+    defer parser.deinit();
+
+    parser.parse(argv) catch |err| {
+        const showed_help = try writeParseError(allocator, &parser, stdout, err);
+        if (showed_help) return;
+        return err;
+    };
+
+    const no_color = parser.getFlag("no-color");
 
     const options = display.resolveOptions(stdout, no_color);
 
@@ -61,13 +66,11 @@ pub fn run(allocator: std.mem.Allocator, stdout: std.fs.File) !void {
     const now = std.time.timestamp();
     const one_week_ago = now - (7 * 86400);
 
-    // Calculate statistics
     for (task_store.tasks.items) |task| {
         stats.total += 1;
         stats.by_status[@intFromEnum(task.status)] += 1;
         stats.by_priority[@intFromEnum(task.priority)] += 1;
 
-        // Count tags
         stats.total_tags += task.tags.items.len;
         for (task.tags.items) |tag| {
             const gop = try stats.unique_tags.getOrPut(tag);
@@ -78,12 +81,10 @@ pub fn run(allocator: std.mem.Allocator, stdout: std.fs.File) !void {
             gop.value_ptr.* += 1;
         }
 
-        // Count blocked tasks
         if (task.status == .blocked or task.blocked_by.items.len > 0) {
             stats.blocked_tasks += 1;
         }
 
-        // Count tasks completed/created this week
         if (task.completed_at) |completed| {
             if (completed > one_week_ago) {
                 stats.completed_this_week += 1;
@@ -94,7 +95,6 @@ pub fn run(allocator: std.mem.Allocator, stdout: std.fs.File) !void {
         }
     }
 
-    // Calculate completion rate
     const completion_rate: f64 = if (stats.total > 0)
         @as(f64, @floatFromInt(stats.by_status[@intFromEnum(Status.done)])) / @as(f64, @floatFromInt(stats.total)) * 100.0
     else
@@ -198,7 +198,6 @@ fn renderStats(stdout: std.fs.File, stats: *const Stats, completion_rate: f64, o
         try out.writeAll("\n");
         try out.writeAll("────────────────────────────────────────────────────────────\n");
 
-        // Sort tags by count
         var tag_entries = try std.ArrayList(TagEntry).initCapacity(stats.unique_tags.allocator, stats.unique_tags.count());
         defer tag_entries.deinit(stats.unique_tags.allocator);
 
@@ -207,14 +206,12 @@ fn renderStats(stdout: std.fs.File, stats: *const Stats, completion_rate: f64, o
             try tag_entries.append(allocator, .{ .tag = entry.key_ptr.*, .count = entry.value_ptr.* });
         }
 
-        // Sort descending by count
         std.sort.insertion(TagEntry, tag_entries.items, {}, struct {
             fn lessThan(_: void, a: TagEntry, b: TagEntry) bool {
                 return a.count > b.count;
             }
         }.lessThan);
 
-        // Show top 10 tags
         const max_tags = @min(10, tag_entries.items.len);
         for (tag_entries.items[0..max_tags]) |entry| {
             const tag_line = try std.fmt.allocPrint(allocator, "  {s:<20} {d:>4} tasks\n", .{ entry.tag, entry.count });
@@ -224,6 +221,25 @@ fn renderStats(stdout: std.fs.File, stats: *const Stats, completion_rate: f64, o
     }
 
     try out.writeAll("\n");
+}
+
+fn writeParseError(allocator: std.mem.Allocator, parser: *argparse.Parser, stdout: std.fs.File, err: anyerror) !bool {
+    switch (err) {
+        argparse.Error.ShowHelp => {
+            const help = try parser.help();
+            defer allocator.free(help);
+            try stdout.writeAll(help);
+            return true;
+        },
+        else => {
+            const parse_err: argparse.Error = @errorCast(err);
+            const message = try parser.formatError(allocator, parse_err, .{ .color = .auto });
+            defer allocator.free(message);
+            try stdout.writeAll(message);
+            try stdout.writeAll("\n");
+            return false;
+        },
+    }
 }
 
 test "calculate stats" {

@@ -1,4 +1,5 @@
 const std = @import("std");
+const argparse = @import("argparse");
 const model = @import("../model.zig");
 const store = @import("../store.zig");
 const display = @import("../display.zig");
@@ -11,28 +12,31 @@ const DeleteError = error{
     SaveFailed,
 } || store.StorageError;
 
-pub fn run(allocator: std.mem.Allocator, stdout: std.fs.File, stderr: std.fs.File) !void {
-    var iter = std.process.args();
-    _ = iter.skip(); // Skip executable
-    _ = iter.skip(); // Skip "delete"
-
-    const id_str = iter.next() orelse {
-        try stderr.writeAll("Error: Task ID is required\n");
-        try stderr.writeAll("Usage: tasks delete <ID>\n");
-        return error.MissingId;
+pub fn run(allocator: std.mem.Allocator, stdout: std.fs.File, stderr: std.fs.File, argv: []const []const u8) !void {
+    const args = [_]argparse.Arg{
+        .{ .name = "id", .kind = .positional, .position = 0, .required = true, .help = "Task ID" },
     };
 
-    // Load tasks
+    var parser = try argparse.Parser.init(allocator, &args);
+    defer parser.deinit();
+
+    parser.parse(argv) catch |err| {
+        const showed_help = try writeParseError(allocator, &parser, stdout, stderr, err);
+        if (showed_help) return;
+        return err;
+    };
+
+    const id_str = try parser.getRequiredPositional("id");
+
     var task_store = try store.loadTasks(allocator);
     defer task_store.deinit();
 
-    // Find task
     const task = blk: {
-        if (task_store.findByIdString(id_str) catch null) |t| {
-            break :blk t;
+        if (task_store.findByIdString(id_str) catch null) |task_value| {
+            break :blk task_value;
         }
-        if (task_store.findByShortId(id_str)) |t| {
-            break :blk t;
+        if (task_store.findByShortId(id_str)) |task_value| {
+            break :blk task_value;
         }
         break :blk null;
     } orelse {
@@ -42,14 +46,16 @@ pub fn run(allocator: std.mem.Allocator, stdout: std.fs.File, stderr: std.fs.Fil
         return error.TaskNotFound;
     };
 
-    // Check if other tasks depend on this one
     const id_full = model.formatUuid(task.id);
-    for (task_store.tasks.items) |t| {
-        for (t.dependencies.items) |dep| {
+    for (task_store.tasks.items) |task_item| {
+        for (task_item.dependencies.items) |dep| {
             if (std.mem.eql(u8, dep, &id_full)) {
-                const msg = try std.fmt.allocPrint(allocator,
+                const msg = try std.fmt.allocPrint(
+                    allocator,
                     "Error: Cannot delete task - other tasks depend on it.\n" ++
-                    "Run 'tasks graph {s}' to see dependents.\n", .{id_str[0..8]});
+                        "Run 'tasks graph {s}' to see dependents.\n",
+                    .{id_str[0..8]},
+                );
                 defer allocator.free(msg);
                 try stderr.writeAll(msg);
                 return error.HasDependents;
@@ -57,16 +63,39 @@ pub fn run(allocator: std.mem.Allocator, stdout: std.fs.File, stderr: std.fs.Fil
         }
     }
 
-    // Remove task
     const id = task.id;
     try task_store.removeByUuid(id);
 
-    // Save
     try store.saveTasks(allocator, &task_store);
 
     const msg = try std.fmt.allocPrint(allocator, "Deleted task: {s}\n", .{id_str});
     defer allocator.free(msg);
     try stdout.writeAll(msg);
+}
+
+fn writeParseError(
+    allocator: std.mem.Allocator,
+    parser: *argparse.Parser,
+    stdout: std.fs.File,
+    stderr: std.fs.File,
+    err: anyerror,
+) !bool {
+    switch (err) {
+        argparse.Error.ShowHelp => {
+            const help = try parser.help();
+            defer allocator.free(help);
+            try stdout.writeAll(help);
+            return true;
+        },
+        else => {
+            const parse_err: argparse.Error = @errorCast(err);
+            const message = try parser.formatError(allocator, parse_err, .{ .color = .auto });
+            defer allocator.free(message);
+            try stderr.writeAll(message);
+            try stderr.writeAll("\n");
+            return false;
+        },
+    }
 }
 
 test "delete removes task" {

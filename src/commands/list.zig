@@ -1,4 +1,5 @@
 const std = @import("std");
+const argparse = @import("argparse");
 const model = @import("../model.zig");
 const store = @import("../store.zig");
 const display = @import("../display.zig");
@@ -10,64 +11,59 @@ const ListError = error{
     LoadFailed,
 } || store.StorageError;
 
-pub fn run(allocator: std.mem.Allocator, stdout: std.fs.File) !void {
-    var iter = std.process.args();
-    _ = iter.skip(); // Skip executable
-    _ = iter.skip(); // Skip "list"
+pub fn run(allocator: std.mem.Allocator, stdout: std.fs.File, argv: []const []const u8) !void {
+    const args = [_]argparse.Arg{
+        .{ .name = "status", .long = "status", .kind = .option, .help = "Filter by status", .validator = validateStatus },
+        .{ .name = "priority", .long = "priority", .kind = .option, .help = "Filter by priority", .validator = validatePriority },
+        .{ .name = "tags", .long = "tags", .kind = .option, .help = "Filter by tag" },
+        .{ .name = "blocked", .long = "blocked", .kind = .flag, .help = "Only blocked tasks" },
+        .{ .name = "unblocked", .long = "unblocked", .kind = .flag, .help = "Only unblocked tasks" },
+        .{ .name = "no-color", .long = "no-color", .kind = .flag, .help = "Disable ANSI colors" },
+    };
 
-    // Parse optional flags
+    var parser = try argparse.Parser.init(allocator, &args);
+    defer parser.deinit();
+
+    parser.parse(argv) catch |err| {
+        const showed_help = try writeParseError(allocator, &parser, stdout, err);
+        if (showed_help) return;
+        return err;
+    };
+
     var status_filter: ?model.Status = null;
-    var priority_filter: ?model.Priority = null;
-    var tag_filter: ?[]const u8 = null;
-    var blocked_only = false;
-    var unblocked_only = false;
-    var no_color = false;
-
-    while (iter.next()) |arg| {
-        if (std.mem.eql(u8, arg, "--status")) {
-            const status_str = iter.next() orelse continue;
-            status_filter = std.meta.stringToEnum(model.Status, status_str) orelse {
-                try stdout.writeAll("Error: Invalid status. Use: todo, in_progress, done, blocked\n");
-                return error.InvalidStatus;
-            };
-        } else if (std.mem.eql(u8, arg, "--priority")) {
-            const prio_str = iter.next() orelse continue;
-            priority_filter = std.meta.stringToEnum(model.Priority, prio_str) orelse {
-                try stdout.writeAll("Error: Invalid priority. Use: low, medium, high, critical\n");
-                return error.InvalidPriority;
-            };
-        } else if (std.mem.eql(u8, arg, "--tags")) {
-            tag_filter = iter.next();
-        } else if (std.mem.eql(u8, arg, "--blocked")) {
-            blocked_only = true;
-        } else if (std.mem.eql(u8, arg, "--unblocked")) {
-            unblocked_only = true;
-        } else if (std.mem.eql(u8, arg, "--no-color")) {
-            no_color = true;
-        }
+    if (parser.getOption("status")) |status_str| {
+        status_filter = try parseStatus(status_str);
     }
 
-    // Load tasks
+    var priority_filter: ?model.Priority = null;
+    if (parser.getOption("priority")) |priority_str| {
+        priority_filter = try parsePriority(priority_str);
+    }
+
+    const tag_filter = parser.getOption("tags");
+    const blocked_only = parser.getFlag("blocked");
+    const unblocked_only = parser.getFlag("unblocked");
+    const no_color = parser.getFlag("no-color");
+
     var task_store = try store.loadTasks(allocator);
     defer task_store.deinit();
 
-    // Apply filters
     var filtered = std.ArrayListUnmanaged(*model.Task){};
     defer filtered.deinit(allocator);
 
     for (task_store.tasks.items) |task| {
-        if (status_filter) |s| {
-            if (task.status != s) continue;
+        if (status_filter) |status| {
+            if (task.status != status) continue;
         }
 
-        if (priority_filter) |p| {
-            if (task.priority != p) continue;
+        if (priority_filter) |priority| {
+            if (task.priority != priority) continue;
         }
 
         if (tag_filter) |tag| {
             var has_tag = false;
-            for (task.tags.items) |t| {
-                if (std.mem.eql(u8, t, tag)) {
+            for (task.tags.items) |task_tag| {
+                if (std.mem.eql(u8, task_tag, tag)) {
                     has_tag = true;
                     break;
                 }
@@ -86,11 +82,45 @@ pub fn run(allocator: std.mem.Allocator, stdout: std.fs.File) !void {
         try filtered.append(allocator, task);
     }
 
-    // Render
     const options = display.resolveOptions(stdout, no_color);
     const output = try display.renderTaskTable(allocator, filtered.items, options);
     defer allocator.free(output);
     try stdout.writeAll(output);
+}
+
+fn parseStatus(value: []const u8) !model.Status {
+    return std.meta.stringToEnum(model.Status, value) orelse argparse.Error.InvalidValue;
+}
+
+fn parsePriority(value: []const u8) !model.Priority {
+    return std.meta.stringToEnum(model.Priority, value) orelse argparse.Error.InvalidValue;
+}
+
+fn validateStatus(value: []const u8) anyerror!void {
+    _ = try parseStatus(value);
+}
+
+fn validatePriority(value: []const u8) anyerror!void {
+    _ = try parsePriority(value);
+}
+
+fn writeParseError(allocator: std.mem.Allocator, parser: *argparse.Parser, stdout: std.fs.File, err: anyerror) !bool {
+    switch (err) {
+        argparse.Error.ShowHelp => {
+            const help = try parser.help();
+            defer allocator.free(help);
+            try stdout.writeAll(help);
+            return true;
+        },
+        else => {
+            const parse_err: argparse.Error = @errorCast(err);
+            const message = try parser.formatError(allocator, parse_err, .{ .color = .auto });
+            defer allocator.free(message);
+            try stdout.writeAll(message);
+            try stdout.writeAll("\n");
+            return false;
+        },
+    }
 }
 
 test "list filters by status" {

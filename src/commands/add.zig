@@ -1,4 +1,5 @@
 const std = @import("std");
+const argparse = @import("argparse");
 const model = @import("../model.zig");
 const store = @import("../store.zig");
 const display = @import("../display.zig");
@@ -10,70 +11,55 @@ const AddError = error{
     SaveFailed,
 } || store.StorageError || std.fs.File.WriteError;
 
-pub fn run(allocator: std.mem.Allocator, stdout: std.fs.File) !void {
-    var iter = std.process.args();
-    _ = iter.skip(); // Skip executable
-    _ = iter.skip(); // Skip "add"
+pub fn run(allocator: std.mem.Allocator, stdout: std.fs.File, argv: []const []const u8) !void {
+    const args = [_]argparse.Arg{
+        .{ .name = "no-color", .long = "no-color", .kind = .flag, .help = "Disable ANSI colors" },
+        .{ .name = "body", .long = "body", .kind = .option, .help = "Task body" },
+        .{ .name = "priority", .long = "priority", .kind = .option, .help = "Task priority", .validator = validatePriority },
+        .{ .name = "tags", .long = "tags", .kind = .option, .help = "Comma-separated tags" },
+        .{ .name = "title", .kind = .positional, .position = 0, .required = true, .help = "Task title" },
+    };
 
-    var title: ?[]const u8 = null;
+    var parser = try argparse.Parser.init(allocator, &args);
+    defer parser.deinit();
 
-    // Parse optional flags
-    var body: ?[]const u8 = null;
+    parser.parse(argv) catch |err| {
+        const showed_help = try writeParseError(allocator, &parser, stdout, err);
+        if (showed_help) return;
+        return err;
+    };
+
+    const title_value = try parser.getRequiredPositional("title");
+    const no_color = parser.getFlag("no-color");
+    const body = parser.getOption("body");
+
     var priority: model.Priority = .medium;
+    if (parser.getOption("priority")) |priority_str| {
+        priority = try parsePriority(priority_str);
+    }
+
     var tags = std.ArrayListUnmanaged([]const u8){};
-    var no_color = false;
     defer {
         for (tags.items) |tag| allocator.free(tag);
         tags.deinit(allocator);
     }
 
-    while (iter.next()) |arg| {
-        if (std.mem.eql(u8, arg, "--no-color")) {
-            no_color = true;
-            continue;
-        }
-        if (std.mem.eql(u8, arg, "--body")) {
-            body = iter.next() orelse continue;
-            continue;
-        }
-        if (std.mem.eql(u8, arg, "--priority")) {
-            const prio_str = iter.next() orelse continue;
-            priority = std.meta.stringToEnum(model.Priority, prio_str) orelse {
-                try stdout.writeAll("Error: Invalid priority. Use: low, medium, high, critical\n");
-                return error.InvalidPriority;
-            };
-            continue;
-        }
-        if (std.mem.eql(u8, arg, "--tags")) {
-            const tags_str = iter.next() orelse continue;
-            var tag_iter = std.mem.splitScalar(u8, tags_str, ',');
-            while (tag_iter.next()) |tag| {
-                const trimmed = std.mem.trim(u8, tag, " ");
-                if (trimmed.len > 0) {
-                    try tags.append(allocator, try allocator.dupe(u8, trimmed));
-                }
+    if (parser.getOption("tags")) |tags_str| {
+        var tag_iter = std.mem.splitScalar(u8, tags_str, ',');
+        while (tag_iter.next()) |tag| {
+            const trimmed = std.mem.trim(u8, tag, " ");
+            if (trimmed.len > 0) {
+                try tags.append(allocator, try allocator.dupe(u8, trimmed));
             }
-            continue;
-        }
-        if (title == null) {
-            title = arg;
         }
     }
 
-    const title_value = title orelse {
-        try stdout.writeAll("Error: Title is required\n");
-        try stdout.writeAll("Usage: tasks add \"TITLE\" [--body DESC] [--tags TAG,TAG] [--priority PRIORITY]\n");
-        return error.MissingTitle;
-    };
-
-    // Load existing tasks
     var task_store = try store.loadTasks(allocator);
     defer task_store.deinit();
 
-    // Create new task
     const task = try task_store.create(title_value);
-    if (body) |b| {
-        task.body = try allocator.dupe(u8, b);
+    if (body) |body_value| {
+        task.body = try allocator.dupe(u8, body_value);
     }
     task.priority = priority;
 
@@ -81,16 +67,41 @@ pub fn run(allocator: std.mem.Allocator, stdout: std.fs.File) !void {
         try task.tags.append(allocator, try allocator.dupe(u8, tag));
     }
 
-    // Save
     try store.saveTasks(allocator, &task_store);
 
     const options = display.resolveOptions(stdout, no_color);
 
-    // Show result
     try stdout.writeAll("Created task:\n\n");
     const detail = try display.renderTaskDetail(allocator, task, options);
     defer allocator.free(detail);
     try stdout.writeAll(detail);
+}
+
+fn parsePriority(value: []const u8) !model.Priority {
+    return std.meta.stringToEnum(model.Priority, value) orelse argparse.Error.InvalidValue;
+}
+
+fn validatePriority(value: []const u8) anyerror!void {
+    _ = try parsePriority(value);
+}
+
+fn writeParseError(allocator: std.mem.Allocator, parser: *argparse.Parser, stdout: std.fs.File, err: anyerror) !bool {
+    switch (err) {
+        argparse.Error.ShowHelp => {
+            const help = try parser.help();
+            defer allocator.free(help);
+            try stdout.writeAll(help);
+            return true;
+        },
+        else => {
+            const parse_err: argparse.Error = @errorCast(err);
+            const message = try parser.formatError(allocator, parse_err, .{ .color = .auto });
+            defer allocator.free(message);
+            try stdout.writeAll(message);
+            try stdout.writeAll("\n");
+            return false;
+        },
+    }
 }
 
 test "add creates task" {

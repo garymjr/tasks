@@ -1,4 +1,5 @@
 const std = @import("std");
+const argparse = @import("argparse");
 const model = @import("../model.zig");
 const store = @import("../store.zig");
 const display = @import("../display.zig");
@@ -11,35 +12,27 @@ const UnblockError = error{
     SaveFailed,
 } || store.StorageError || std.fs.File.WriteError;
 
-pub fn run(allocator: std.mem.Allocator, stdout: std.fs.File, stderr: std.fs.File) !void {
-    var iter = std.process.args();
-    _ = iter.skip(); // Skip executable
-    _ = iter.skip(); // Skip "unblock"
-
-    var no_color = false;
-    var id_str: ?[]const u8 = null;
-
-    while (iter.next()) |arg| {
-        if (std.mem.eql(u8, arg, "--no-color")) {
-            no_color = true;
-            continue;
-        }
-        if (id_str == null) {
-            id_str = arg;
-        }
-    }
-
-    const id_value = id_str orelse {
-        try stderr.writeAll("Error: Task ID is required\n");
-        try stderr.writeAll("Usage: tasks unblock <ID>\n");
-        return error.MissingId;
+pub fn run(allocator: std.mem.Allocator, stdout: std.fs.File, stderr: std.fs.File, argv: []const []const u8) !void {
+    const args = [_]argparse.Arg{
+        .{ .name = "no-color", .long = "no-color", .kind = .flag, .help = "Disable ANSI colors" },
+        .{ .name = "id", .kind = .positional, .position = 0, .required = true, .help = "Task ID" },
     };
 
-    // Load existing tasks
+    var parser = try argparse.Parser.init(allocator, &args);
+    defer parser.deinit();
+
+    parser.parse(argv) catch |err| {
+        const showed_help = try writeParseError(allocator, &parser, stdout, stderr, err);
+        if (showed_help) return;
+        return err;
+    };
+
+    const id_value = try parser.getRequiredPositional("id");
+    const no_color = parser.getFlag("no-color");
+
     var task_store = try store.loadTasks(allocator);
     defer task_store.deinit();
 
-    // Find task
     const task = task_store.findByShortId(id_value) orelse {
         try stderr.writeAll("Error: Task not found\n");
         return error.TaskNotFound;
@@ -47,7 +40,6 @@ pub fn run(allocator: std.mem.Allocator, stdout: std.fs.File, stderr: std.fs.Fil
 
     const options = display.resolveOptions(stdout, no_color);
 
-    // Check if not blocked
     if (task.status != .blocked) {
         try stdout.writeAll("Task is not blocked.\n\n");
         const detail = try display.renderTaskDetail(allocator, task, options);
@@ -56,15 +48,37 @@ pub fn run(allocator: std.mem.Allocator, stdout: std.fs.File, stderr: std.fs.Fil
         return;
     }
 
-    // Reset to todo (unblock)
     task.setStatus(.todo);
 
-    // Save
     try store.saveTasks(allocator, &task_store);
 
-    // Show result
     try stdout.writeAll("Unblocked task (reset to todo):\n\n");
     const detail = try display.renderTaskDetail(allocator, task, options);
     defer allocator.free(detail);
     try stdout.writeAll(detail);
+}
+
+fn writeParseError(
+    allocator: std.mem.Allocator,
+    parser: *argparse.Parser,
+    stdout: std.fs.File,
+    stderr: std.fs.File,
+    err: anyerror,
+) !bool {
+    switch (err) {
+        argparse.Error.ShowHelp => {
+            const help = try parser.help();
+            defer allocator.free(help);
+            try stdout.writeAll(help);
+            return true;
+        },
+        else => {
+            const parse_err: argparse.Error = @errorCast(err);
+            const message = try parser.formatError(allocator, parse_err, .{ .color = .auto });
+            defer allocator.free(message);
+            try stderr.writeAll(message);
+            try stderr.writeAll("\n");
+            return false;
+        },
+    }
 }
