@@ -13,6 +13,13 @@ var context: ?Context = null;
 pub fn run(allocator: std.mem.Allocator, stdout: std.fs.File, stderr: std.fs.File, argv: []const []const u8) !void {
     const command = buildCommand();
 
+    if (argv.len == 1) {
+        const help = try command.helpText(allocator);
+        defer allocator.free(help);
+        try stdout.writeAll(help);
+        return;
+    }
+
     if (argv.len > 1 and std.mem.eql(u8, argv[1], "help")) {
         try printHelpFor(allocator, stdout, command, argv);
         return;
@@ -96,111 +103,111 @@ fn buildCommand() argparse.Command {
 }
 
 fn handleInit(parser: *argparse.Parser, argv: []const []const u8) anyerror!void {
-    _ = parser;
+    _ = argv;
     const ctx = context.?;
-    try commands.init.run(ctx.allocator, ctx.stdout, argv);
+    try commands.init.run(ctx.allocator, ctx.stdout, parser);
 }
 
 fn handleAdd(parser: *argparse.Parser, argv: []const []const u8) anyerror!void {
-    _ = parser;
+    _ = argv;
     const ctx = context.?;
-    try commands.add.run(ctx.allocator, ctx.stdout, argv);
+    try commands.add.run(ctx.allocator, ctx.stdout, parser);
 }
 
 fn handleList(parser: *argparse.Parser, argv: []const []const u8) anyerror!void {
-    _ = parser;
+    _ = argv;
     const ctx = context.?;
-    try commands.list.run(ctx.allocator, ctx.stdout, argv);
+    try commands.list.run(ctx.allocator, ctx.stdout, parser);
 }
 
 fn handleShow(parser: *argparse.Parser, argv: []const []const u8) anyerror!void {
-    _ = parser;
+    _ = argv;
     const ctx = context.?;
-    try commands.show.run(ctx.allocator, ctx.stdout, ctx.stderr, argv);
+    try commands.show.run(ctx.allocator, ctx.stdout, ctx.stderr, parser);
 }
 
 fn handleEdit(parser: *argparse.Parser, argv: []const []const u8) anyerror!void {
-    _ = parser;
+    _ = argv;
     const ctx = context.?;
-    try commands.edit.run(ctx.allocator, ctx.stdout, ctx.stderr, argv);
+    try commands.edit.run(ctx.allocator, ctx.stdout, ctx.stderr, parser);
 }
 
 fn handleDelete(parser: *argparse.Parser, argv: []const []const u8) anyerror!void {
-    _ = parser;
+    _ = argv;
     const ctx = context.?;
-    try commands.delete.run(ctx.allocator, ctx.stdout, ctx.stderr, argv);
+    try commands.delete.run(ctx.allocator, ctx.stdout, ctx.stderr, parser);
 }
 
 fn handleDone(parser: *argparse.Parser, argv: []const []const u8) anyerror!void {
-    _ = parser;
+    _ = argv;
     const ctx = context.?;
-    try commands.done.run(ctx.allocator, ctx.stdout, ctx.stderr, argv);
+    try commands.done.run(ctx.allocator, ctx.stdout, ctx.stderr, parser);
 }
 
 fn handleBlock(parser: *argparse.Parser, argv: []const []const u8) anyerror!void {
-    _ = parser;
+    _ = argv;
     const ctx = context.?;
-    try commands.block.run(ctx.allocator, ctx.stdout, ctx.stderr, argv);
+    try commands.block.run(ctx.allocator, ctx.stdout, ctx.stderr, parser);
 }
 
 fn handleUnblock(parser: *argparse.Parser, argv: []const []const u8) anyerror!void {
-    _ = parser;
+    _ = argv;
     const ctx = context.?;
-    try commands.unblock.run(ctx.allocator, ctx.stdout, ctx.stderr, argv);
+    try commands.unblock.run(ctx.allocator, ctx.stdout, ctx.stderr, parser);
 }
 
 fn handleLink(parser: *argparse.Parser, argv: []const []const u8) anyerror!void {
-    _ = parser;
+    _ = argv;
     const ctx = context.?;
-    try commands.link.run(ctx.allocator, ctx.stdout, ctx.stderr, argv);
+    try commands.link.run(ctx.allocator, ctx.stdout, ctx.stderr, parser);
 }
 
 fn handleUnlink(parser: *argparse.Parser, argv: []const []const u8) anyerror!void {
-    _ = parser;
+    _ = argv;
     const ctx = context.?;
-    try commands.unlink.run(ctx.allocator, ctx.stdout, ctx.stderr, argv);
+    try commands.unlink.run(ctx.allocator, ctx.stdout, ctx.stderr, parser);
 }
 
 fn handleGraph(parser: *argparse.Parser, argv: []const []const u8) anyerror!void {
-    _ = parser;
+    _ = argv;
     const ctx = context.?;
-    try commands.graph.run(ctx.allocator, ctx.stdout, ctx.stderr, argv);
+    try commands.graph.run(ctx.allocator, ctx.stdout, ctx.stderr, parser);
 }
 
 fn handleTag(parser: *argparse.Parser, argv: []const []const u8) anyerror!void {
-    _ = parser;
+    _ = argv;
     const ctx = context.?;
-    try commands.tag.run(ctx.allocator, ctx.stdout, ctx.stderr, argv);
+    try commands.tag.run(ctx.allocator, ctx.stdout, ctx.stderr, parser);
 }
 
 fn handleUntag(parser: *argparse.Parser, argv: []const []const u8) anyerror!void {
-    _ = parser;
+    _ = argv;
     const ctx = context.?;
-    try commands.untag.run(ctx.allocator, ctx.stdout, ctx.stderr, argv);
+    try commands.untag.run(ctx.allocator, ctx.stdout, ctx.stderr, parser);
 }
 
 fn handleTags(parser: *argparse.Parser, argv: []const []const u8) anyerror!void {
-    _ = parser;
+    _ = argv;
     const ctx = context.?;
-    try commands.tags.run(ctx.allocator, ctx.stdout, argv);
+    try commands.tags.run(ctx.allocator, ctx.stdout, parser);
 }
 
 fn handleSearch(parser: *argparse.Parser, argv: []const []const u8) anyerror!void {
-    _ = parser;
+    _ = argv;
     const ctx = context.?;
-    try commands.search.run(ctx.allocator, ctx.stdout, ctx.stderr, argv);
+    try commands.search.run(ctx.allocator, ctx.stdout, ctx.stderr, parser);
 }
 
 fn handleNext(parser: *argparse.Parser, argv: []const []const u8) anyerror!void {
-    _ = parser;
+    _ = argv;
     const ctx = context.?;
-    try commands.next.run(ctx.allocator, ctx.stdout, ctx.stderr, argv);
+    try commands.next.run(ctx.allocator, ctx.stdout, ctx.stderr, parser);
 }
 
 fn handleStats(parser: *argparse.Parser, argv: []const []const u8) anyerror!void {
-    _ = parser;
+    _ = argv;
     const ctx = context.?;
-    try commands.stats.run(ctx.allocator, ctx.stdout, argv);
+    try commands.stats.run(ctx.allocator, ctx.stdout, parser);
 }
 
 test "help text lists commands" {

@@ -36,17 +36,8 @@ pub const args = [_]argparse.Arg{
     .{ .name = "no-color", .long = "no-color", .kind = .flag, .help = "Disable ANSI colors" },
 };
 
-pub fn run(allocator: std.mem.Allocator, stdout: std.fs.File, argv: []const []const u8) !void {
+pub fn run(allocator: std.mem.Allocator, stdout: std.fs.File, parser: *argparse.Parser) !void {
     const store = @import("../store.zig");
-
-    var parser = try argparse.Parser.init(allocator, args[0..]);
-    defer parser.deinit();
-
-    parser.parse(argv) catch |err| {
-        const showed_help = try writeParseError(allocator, &parser, stdout, err);
-        if (showed_help) return;
-        return err;
-    };
 
     const no_color = parser.getFlag("no-color");
 
@@ -223,24 +214,6 @@ fn renderStats(stdout: std.fs.File, stats: *const Stats, completion_rate: f64, o
     try out.writeAll("\n");
 }
 
-fn writeParseError(allocator: std.mem.Allocator, parser: *argparse.Parser, stdout: std.fs.File, err: anyerror) !bool {
-    switch (err) {
-        argparse.Error.ShowHelp => {
-            const help = try parser.help();
-            defer allocator.free(help);
-            try stdout.writeAll(help);
-            return true;
-        },
-        else => {
-            const parse_err: argparse.Error = @errorCast(err);
-            const message = try parser.formatError(allocator, parse_err, .{ .color = .auto });
-            defer allocator.free(message);
-            try stdout.writeAll(message);
-            try stdout.writeAll("\n");
-            return false;
-        },
-    }
-}
 
 test "calculate stats" {
     const testing = std.testing;

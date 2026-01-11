@@ -16,16 +16,7 @@ pub const args = [_]argparse.Arg{
     .{ .name = "id", .kind = .positional, .position = 0, .required = true, .help = "Task ID" },
 };
 
-pub fn run(allocator: std.mem.Allocator, stdout: std.fs.File, stderr: std.fs.File, argv: []const []const u8) !void {
-    var parser = try argparse.Parser.init(allocator, args[0..]);
-    defer parser.deinit();
-
-    parser.parse(argv) catch |err| {
-        const showed_help = try writeParseError(allocator, &parser, stdout, stderr, err);
-        if (showed_help) return;
-        return err;
-    };
-
+pub fn run(allocator: std.mem.Allocator, stdout: std.fs.File, stderr: std.fs.File, parser: *argparse.Parser) !void {
     const id_str = try parser.getRequiredPositional("id");
 
     var task_store = try store.loadTasks(allocator);
@@ -73,30 +64,6 @@ pub fn run(allocator: std.mem.Allocator, stdout: std.fs.File, stderr: std.fs.Fil
     try stdout.writeAll(msg);
 }
 
-fn writeParseError(
-    allocator: std.mem.Allocator,
-    parser: *argparse.Parser,
-    stdout: std.fs.File,
-    stderr: std.fs.File,
-    err: anyerror,
-) !bool {
-    switch (err) {
-        argparse.Error.ShowHelp => {
-            const help = try parser.help();
-            defer allocator.free(help);
-            try stdout.writeAll(help);
-            return true;
-        },
-        else => {
-            const parse_err: argparse.Error = @errorCast(err);
-            const message = try parser.formatError(allocator, parse_err, .{ .color = .auto });
-            defer allocator.free(message);
-            try stderr.writeAll(message);
-            try stderr.writeAll("\n");
-            return false;
-        },
-    }
-}
 
 test "delete removes task" {
     const testing = std.testing;
