@@ -135,30 +135,59 @@ fn writeTask(writer: anytype, task: *const Task) !void {
     const id_str = formatUuid(task.id);
     const body_str = if (task.body) |b| b else "";
 
-    try writer.print("{{\"id\":\"{s}\",\"title\":\"{s}\",\"body\":\"{s}\",\"status\":\"{s}\",\"priority\":\"{s}\",\"tags\":[", .{
-        &id_str,
-        task.title,
-        body_str,
-        @tagName(task.status),
-        @tagName(task.priority),
-    });
+    try writer.writeAll("{\"id\":");
+    try writeJsonString(writer, &id_str);
+    try writer.writeAll(",\"title\":");
+    try writeJsonString(writer, task.title);
+    try writer.writeAll(",\"body\":");
+    try writeJsonString(writer, body_str);
+    try writer.writeAll(",\"status\":");
+    try writeJsonString(writer, @tagName(task.status));
+    try writer.writeAll(",\"priority\":");
+    try writeJsonString(writer, @tagName(task.priority));
+    try writer.writeAll(",\"tags\":[");
 
     for (task.tags.items, 0..) |tag, i| {
         if (i > 0) try writer.writeAll(",");
-        try writer.print("\"{s}\"", .{tag});
+        try writeJsonString(writer, tag);
     }
 
     try writer.writeAll("],\"dependencies\":[");
 
     for (task.dependencies.items, 0..) |dep, i| {
         if (i > 0) try writer.writeAll(",");
-        try writer.print("\"{s}\"", .{dep});
+        try writeJsonString(writer, dep);
     }
 
     try writer.print("],\"created_at\":{},\"updated_at\":{}}}", .{
         task.created_at,
         task.updated_at,
     });
+}
+
+fn writeJsonString(writer: anytype, value: []const u8) !void {
+    try writer.writeByte('"');
+    for (value) |byte| {
+        switch (byte) {
+            '"' => try writer.writeAll("\\\""),
+            '\\' => try writer.writeAll("\\\\"),
+            '\n' => try writer.writeAll("\\n"),
+            '\r' => try writer.writeAll("\\r"),
+            '\t' => try writer.writeAll("\\t"),
+            '\x08' => try writer.writeAll("\\b"),
+            '\x0c' => try writer.writeAll("\\f"),
+            else => {
+                if (byte < 0x20) {
+                    const hex = "0123456789abcdef";
+                    var esc: [6]u8 = .{ '\\', 'u', '0', '0', hex[byte >> 4], hex[byte & 0x0F] };
+                    try writer.writeAll(&esc);
+                } else {
+                    try writer.writeByte(byte);
+                }
+            },
+        }
+    }
+    try writer.writeByte('"');
 }
 
 fn parseTask(allocator: std.mem.Allocator, obj: std.json.ObjectMap) !Task {
@@ -245,4 +274,29 @@ test "save and load tasks" {
     const loaded2 = store2.findByUuid(task2.id).?;
     try testing.expectEqualStrings("Test task 2", loaded2.title);
     try testing.expectEqual(Priority.high, loaded2.priority);
+}
+
+test "save and load tasks with escaped strings" {
+    const testing = std.testing;
+    const allocator = testing.allocator;
+
+    var store1 = TaskStore.init(allocator);
+    defer store1.deinit();
+
+    const task = try store1.create("Quote \"test\"\nLine");
+    task.body = try allocator.dupe(u8, "Body line\r\nSecond \"row\"");
+    try task.tags.append(allocator, try allocator.dupe(u8, "tag\"1"));
+    try task.tags.append(allocator, try allocator.dupe(u8, "tag\n2"));
+
+    try saveTasks(allocator, &store1);
+
+    var store2 = try loadTasks(allocator);
+    defer store2.deinit();
+
+    const loaded = store2.findByUuid(task.id).?;
+    try testing.expectEqualStrings("Quote \"test\"\nLine", loaded.title);
+    try testing.expectEqualStrings("Body line\r\nSecond \"row\"", loaded.body.?);
+    try testing.expectEqual(@as(usize, 2), loaded.tags.items.len);
+    try testing.expectEqualStrings("tag\"1", loaded.tags.items[0]);
+    try testing.expectEqualStrings("tag\n2", loaded.tags.items[1]);
 }

@@ -217,11 +217,10 @@ pub const TaskStore = struct {
 
     pub fn updateBlockedBy(self: *TaskStore) !void {
         for (self.tasks.items) |task| {
-            task.blocked_by.clearRetainingCapacity();
             for (task.blocked_by.items) |blocked| {
                 self.allocator.free(blocked);
             }
-            task.blocked_by.shrinkRetainingCapacity(0);
+            task.blocked_by.clearRetainingCapacity();
         }
 
         for (self.tasks.items) |task| {
@@ -235,9 +234,11 @@ pub const TaskStore = struct {
     }
 
     pub fn hasCycle(self: *TaskStore, start_id: Uuid) bool {
-        var visited = std.StringHashMap(u8).init(self.allocator);
+        var visited = std.AutoHashMap(Uuid, u8).init(self.allocator);
         defer visited.deinit();
-        return hasCycleDfs(self, start_id, &visited);
+        var in_stack = std.AutoHashMap(Uuid, u8).init(self.allocator);
+        defer in_stack.deinit();
+        return hasCycleDfs(self, start_id, &visited, &in_stack);
     }
 
     pub fn isReady(self: *TaskStore, task: Task) bool {
@@ -270,18 +271,23 @@ pub const TaskStore = struct {
     }
 };
 
-fn hasCycleDfs(store: *TaskStore, task_id: Uuid, visited: *std.StringHashMap(u8)) bool {
-    const id_arr = formatUuid(task_id);
-    if (visited.get(&id_arr)) |_| return true;
-    visited.put(&id_arr, 1) catch {};
+fn hasCycleDfs(store: *TaskStore, task_id: Uuid, visited: *std.AutoHashMap(Uuid, u8), in_stack: *std.AutoHashMap(Uuid, u8)) bool {
+    if (in_stack.get(task_id)) |_| return true;
+    if (visited.get(task_id)) |_| return false;
+    visited.put(task_id, 1) catch {};
+    in_stack.put(task_id, 1) catch {};
 
-    const task = store.findByUuid(task_id) orelse return false;
+    const task = store.findByUuid(task_id) orelse {
+        _ = in_stack.remove(task_id);
+        return false;
+    };
 
     for (task.dependencies.items) |dep_str| {
         const dep_id = parseUuid(dep_str[0..36]) catch continue;
-        if (hasCycleDfs(store, dep_id, visited)) return true;
+        if (hasCycleDfs(store, dep_id, visited, in_stack)) return true;
     }
 
+    _ = in_stack.remove(task_id);
     return false;
 }
 
@@ -550,6 +556,32 @@ test "taskstore has cycle" {
     try task2.dependencies.append(allocator, id2);
 
     try std.testing.expect(store.hasCycle(task1.id));
+}
+
+test "taskstore has no cycle in diamond" {
+    const allocator = std.testing.allocator;
+    var store = TaskStore.init(allocator);
+    defer store.deinit();
+
+    const root = try store.create("Root");
+    const left = try store.create("Left");
+    const right = try store.create("Right");
+    const join = try store.create("Join");
+
+    const root_uuid = uuidToString(root.id);
+    const left_uuid = uuidToString(left.id);
+    const right_uuid = uuidToString(right.id);
+
+    const root_id = try allocator.dupe(u8, &root_uuid);
+    const left_id = try allocator.dupe(u8, &left_uuid);
+    const right_id = try allocator.dupe(u8, &right_uuid);
+
+    try left.dependencies.append(allocator, root_id);
+    try right.dependencies.append(allocator, try allocator.dupe(u8, &root_uuid));
+    try join.dependencies.append(allocator, left_id);
+    try join.dependencies.append(allocator, right_id);
+
+    try std.testing.expect(!store.hasCycle(join.id));
 }
 
 test "taskstore update blocked by" {

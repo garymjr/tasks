@@ -1,5 +1,8 @@
 const std = @import("std");
 
+threadlocal var timestamp_buf: [64]u8 = undefined;
+threadlocal var relative_buf: [64]u8 = undefined;
+
 pub fn formatTimestamp(timestamp: i64) []const u8 {
     // Convert Unix timestamp to local time string
     const epoch = std.time.epoch.EpochSeconds{ .secs = @as(u64, @intCast(@max(0, timestamp))) };
@@ -21,21 +24,13 @@ pub fn formatTimestamp(timestamp: i64) []const u8 {
     const minute: u6 = day_seconds.getMinutesIntoHour();
     const second: u6 = day_seconds.getSecondsIntoMinute();
 
-    var buffer: [32]u8 = undefined;
     const month_str = monthName(month);
     const result = std.fmt.bufPrint(
-        &buffer,
+        &timestamp_buf,
         "{s} {d:0>2} {d:0>4} {d:0>2}:{d:0>2}:{d:0>2}",
         .{ month_str, day, year, hour, minute, second },
     ) catch "Invalid timestamp";
-
-    // Return static buffer - caller should copy if needed
-    // For now, we'll allocate in practice. This is for simple formatting.
-    // A better implementation would accept a buffer allocator.
-    var static_buf: [64]u8 = undefined;
-    const len = @min(result.len, static_buf.len);
-    @memcpy(static_buf[0..len], result);
-    return static_buf[0..len];
+    return result;
 }
 
 pub fn formatTimestampAlloc(allocator: std.mem.Allocator, timestamp: i64) ![]const u8 {
@@ -70,26 +65,21 @@ pub fn formatRelative(timestamp: i64) []const u8 {
     const now = std.time.timestamp();
     const diff = now - timestamp;
 
-    var buffer: [32]u8 = undefined;
     const result = if (diff < 60) {
-        std.fmt.bufPrint(&buffer, "just now", .{}) catch "just now";
+        std.fmt.bufPrint(&relative_buf, "just now", .{}) catch "just now";
     } else if (diff < 3600) {
         const mins = diff / 60;
-        std.fmt.bufPrint(&buffer, "{d}m ago", .{mins}) catch "recently";
+        std.fmt.bufPrint(&relative_buf, "{d}m ago", .{mins}) catch "recently";
     } else if (diff < 86400) {
         const hours = diff / 3600;
-        std.fmt.bufPrint(&buffer, "{d}h ago", .{hours}) catch "today";
+        std.fmt.bufPrint(&relative_buf, "{d}h ago", .{hours}) catch "today";
     } else if (diff < 604800) {
         const days = diff / 86400;
-        std.fmt.bufPrint(&buffer, "{d}d ago", .{days}) catch "this week";
+        std.fmt.bufPrint(&relative_buf, "{d}d ago", .{days}) catch "this week";
     } else {
-        std.fmt.bufPrint(&buffer, "{d}w ago", .{diff / 604800}) catch "long ago";
+        std.fmt.bufPrint(&relative_buf, "{d}w ago", .{diff / 604800}) catch "long ago";
     };
-
-    var static_buf: [64]u8 = undefined;
-    const len = @min(result.len, static_buf.len);
-    @memcpy(static_buf[0..len], result);
-    return static_buf[0..len];
+    return result;
 }
 
 pub fn formatRelativeAlloc(allocator: std.mem.Allocator, timestamp: i64) ![]const u8 {
