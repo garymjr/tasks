@@ -14,11 +14,16 @@ pub fn run(allocator: std.mem.Allocator, stdout: std.fs.File, stderr: std.fs.Fil
     _ = iter.skip(); // Skip executable
     _ = iter.skip(); // Skip "next"
 
-    // Check for --all flag
-    const show_all = blk: {
-        const arg = iter.next();
-        break :blk arg != null and std.mem.eql(u8, arg.?, "--all");
-    };
+    var show_all = false;
+    var no_color = false;
+
+    while (iter.next()) |arg| {
+        if (std.mem.eql(u8, arg, "--all")) {
+            show_all = true;
+        } else if (std.mem.eql(u8, arg, "--no-color")) {
+            no_color = true;
+        }
+    }
 
     // Load existing tasks
     var task_store = try store.loadTasks(allocator);
@@ -33,6 +38,8 @@ pub fn run(allocator: std.mem.Allocator, stdout: std.fs.File, stderr: std.fs.Fil
         return error.NoReadyTasks;
     }
 
+    const options = display.resolveOptions(stdout, no_color);
+
     // Sort by priority (high to low), then by created_at
     std.sort.insertion(*Task, ready_tasks.items, {}, compareTasks);
 
@@ -44,7 +51,7 @@ pub fn run(allocator: std.mem.Allocator, stdout: std.fs.File, stderr: std.fs.Fil
             const num_str = try std.fmt.allocPrint(allocator, "{d}. ", .{i + 1});
             defer allocator.free(num_str);
             try stdout.writeAll(num_str);
-            const detail = try display.renderTaskDetail(allocator, task);
+            const detail = try display.renderTaskDetail(allocator, task, options);
             defer allocator.free(detail);
             try stdout.writeAll(detail);
             try stdout.writeAll("\n");
@@ -55,7 +62,7 @@ pub fn run(allocator: std.mem.Allocator, stdout: std.fs.File, stderr: std.fs.Fil
         try stdout.writeAll("Next ready task:\n");
         try stdout.writeAll("────────────────\n\n");
 
-        const detail = try display.renderTaskDetail(allocator, task);
+        const detail = try display.renderTaskDetail(allocator, task, options);
         defer allocator.free(detail);
         try stdout.writeAll(detail);
 

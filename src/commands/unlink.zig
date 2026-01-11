@@ -17,13 +17,31 @@ pub fn run(allocator: std.mem.Allocator, stdout: std.fs.File, stderr: std.fs.Fil
     _ = iter.skip(); // Skip executable
     _ = iter.skip(); // Skip "unlink"
 
-    const child_id_str = iter.next() orelse {
+    var no_color = false;
+    var child_id_str: ?[]const u8 = null;
+    var parent_id_str: ?[]const u8 = null;
+
+    while (iter.next()) |arg| {
+        if (std.mem.eql(u8, arg, "--no-color")) {
+            no_color = true;
+            continue;
+        }
+        if (child_id_str == null) {
+            child_id_str = arg;
+            continue;
+        }
+        if (parent_id_str == null) {
+            parent_id_str = arg;
+        }
+    }
+
+    const child_id_value = child_id_str orelse {
         try stderr.writeAll("Error: Child task ID is required\n");
         try stderr.writeAll("Usage: tasks unlink <CHILD_ID> <PARENT_ID>\n");
         return error.MissingIds;
     };
 
-    const parent_id_str = iter.next() orelse {
+    const parent_id_value = parent_id_str orelse {
         try stderr.writeAll("Error: Parent task ID is required\n");
         try stderr.writeAll("Usage: tasks unlink <CHILD_ID> <PARENT_ID>\n");
         return error.MissingIds;
@@ -34,15 +52,17 @@ pub fn run(allocator: std.mem.Allocator, stdout: std.fs.File, stderr: std.fs.Fil
     defer task_store.deinit();
 
     // Find tasks
-    const child = task_store.findByShortId(child_id_str) orelse {
+    const child = task_store.findByShortId(child_id_value) orelse {
         try stderr.writeAll("Error: Child task not found\n");
         return error.TaskNotFound;
     };
 
-    const parent = task_store.findByShortId(parent_id_str) orelse {
+    const parent = task_store.findByShortId(parent_id_value) orelse {
         try stderr.writeAll("Error: Parent task not found\n");
         return error.TaskNotFound;
     };
+
+    const options = display.resolveOptions(stdout, no_color);
 
     // Find and remove dependency
     const parent_id_str_full = model.formatUuid(parent.id);
@@ -73,11 +93,11 @@ pub fn run(allocator: std.mem.Allocator, stdout: std.fs.File, stderr: std.fs.Fil
     try store.saveTasks(allocator, &task_store);
 
     // Show result
-    const msg = try std.fmt.allocPrint(allocator, "Removed dependency:\n  {s} → {s}\n\n", .{child_id_str, parent_id_str});
+    const msg = try std.fmt.allocPrint(allocator, "Removed dependency:\n  {s} → {s}\n\n", .{ child_id_value, parent_id_value });
     defer allocator.free(msg);
     try stdout.writeAll(msg);
 
-    const detail = try display.renderTaskDetail(allocator, child);
+    const detail = try display.renderTaskDetail(allocator, child, options);
     defer allocator.free(detail);
     try stdout.writeAll(detail);
 }

@@ -17,8 +17,13 @@ pub fn run(allocator: std.mem.Allocator, stdout: std.fs.File, stderr: std.fs.Fil
     // Query can be the remaining arguments joined by spaces
     var query_parts = std.ArrayListUnmanaged([]const u8){};
     defer query_parts.deinit(allocator);
+    var no_color = false;
 
     while (iter.next()) |arg| {
+        if (std.mem.eql(u8, arg, "--no-color")) {
+            no_color = true;
+            continue;
+        }
         try query_parts.append(allocator, arg);
     }
 
@@ -52,7 +57,8 @@ pub fn run(allocator: std.mem.Allocator, stdout: std.fs.File, stderr: std.fs.Fil
     defer allocator.free(header);
     try stdout.writeAll(header);
 
-    const output = try display.renderTaskTable(allocator, results.items);
+    const options = display.resolveOptions(stdout, no_color);
+    const output = try display.renderTaskTable(allocator, results.items, options);
     defer allocator.free(output);
     try stdout.writeAll(output);
 }

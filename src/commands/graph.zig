@@ -14,16 +14,28 @@ pub fn run(allocator: std.mem.Allocator, stdout: std.fs.File, stderr: std.fs.Fil
     _ = iter.skip(); // Skip executable
     _ = iter.skip(); // Skip "graph"
 
-    const id_str = iter.next() orelse {
+    var id_str: ?[]const u8 = null;
+    var show_reverse = false;
+    var no_color = false;
+
+    while (iter.next()) |arg| {
+        if (std.mem.eql(u8, arg, "--reverse")) {
+            show_reverse = true;
+            continue;
+        }
+        if (std.mem.eql(u8, arg, "--no-color")) {
+            no_color = true;
+            continue;
+        }
+        if (id_str == null) {
+            id_str = arg;
+        }
+    }
+
+    const id_value = id_str orelse {
         try stderr.writeAll("Error: Task ID is required\n");
         try stderr.writeAll("Usage: tasks graph <ID>\n");
         return error.MissingId;
-    };
-
-    // Check for --reverse flag
-    const show_reverse = blk: {
-        const arg = iter.next();
-        break :blk arg != null and std.mem.eql(u8, arg.?, "--reverse");
     };
 
     // Load existing tasks
@@ -31,7 +43,7 @@ pub fn run(allocator: std.mem.Allocator, stdout: std.fs.File, stderr: std.fs.Fil
     defer task_store.deinit();
 
     // Find task
-    const task = task_store.findByShortId(id_str) orelse {
+    const task = task_store.findByShortId(id_value) orelse {
         try stderr.writeAll("Error: Task not found\n");
         return error.TaskNotFound;
     };
@@ -48,10 +60,12 @@ pub fn run(allocator: std.mem.Allocator, stdout: std.fs.File, stderr: std.fs.Fil
         try stdout.writeAll(tree);
     }
 
+    const options = display.resolveOptions(stdout, no_color);
+
     // Show task details
     try stdout.writeAll("\nTask Details:\n");
     try stdout.writeAll("─────────────\n\n");
-    const detail = try display.renderTaskDetail(allocator, task);
+    const detail = try display.renderTaskDetail(allocator, task, options);
     defer allocator.free(detail);
     try stdout.writeAll(detail);
 

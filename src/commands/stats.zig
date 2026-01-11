@@ -34,6 +34,19 @@ const Stats = struct {
 pub fn run(allocator: std.mem.Allocator, stdout: std.fs.File) !void {
     const store = @import("../store.zig");
 
+    var iter = std.process.args();
+    _ = iter.skip();
+    _ = iter.skip();
+
+    var no_color = false;
+    while (iter.next()) |arg| {
+        if (std.mem.eql(u8, arg, "--no-color")) {
+            no_color = true;
+        }
+    }
+
+    const options = display.resolveOptions(stdout, no_color);
+
     var task_store = try store.loadTasks(allocator);
     defer task_store.deinit();
 
@@ -87,89 +100,103 @@ pub fn run(allocator: std.mem.Allocator, stdout: std.fs.File) !void {
     else
         0.0;
 
-    try renderStats(stdout, &stats, completion_rate);
+    try renderStats(stdout, &stats, completion_rate, options);
 }
 
-fn renderStats(stdout: std.fs.File, stats: *const Stats, completion_rate: f64) !void {
+fn renderStats(stdout: std.fs.File, stats: *const Stats, completion_rate: f64, options: display.RenderOptions) !void {
     const allocator = stats.unique_tags.allocator;
+    var buffer: [4096]u8 = undefined;
+    var writer = stdout.writer(&buffer);
+    defer writer.interface.flush() catch {};
+    const out = &writer.interface;
 
     const TagEntry = struct { tag: []const u8, count: usize };
 
-    try stdout.writeAll("┌─────────────────────────────────────────────────────────────┐\n");
-    try stdout.writeAll("│                         Task Statistics                     │\n");
-    try stdout.writeAll("└─────────────────────────────────────────────────────────────┘\n");
+    try out.writeAll("┌─────────────────────────────────────────────────────────────┐\n");
+    try out.writeAll("│                         Task Statistics                     │\n");
+    try out.writeAll("└─────────────────────────────────────────────────────────────┘\n");
 
-    try stdout.writeAll("\n📊 Overview\n");
-    try stdout.writeAll("────────────────────────────────────────────────────────────\n");
+    try out.writeAll("\n");
+    try display.writeStyled(out, options, .cyan, "📊 Overview");
+    try out.writeAll("\n");
+    try out.writeAll("────────────────────────────────────────────────────────────\n");
 
     const total_line = try std.fmt.allocPrint(allocator, "Total Tasks:          {d}\n", .{stats.total});
     defer allocator.free(total_line);
-    try stdout.writeAll(total_line);
+    try out.writeAll(total_line);
 
     const rate_line = try std.fmt.allocPrint(allocator, "Completion Rate:      {d:.1}%\n", .{completion_rate});
     defer allocator.free(rate_line);
-    try stdout.writeAll(rate_line);
+    try out.writeAll(rate_line);
 
     const tags_line = try std.fmt.allocPrint(allocator, "Total Tags:          {d} ({d} unique)\n", .{ stats.total_tags, stats.unique_tags.count() });
     defer allocator.free(tags_line);
-    try stdout.writeAll(tags_line);
+    try out.writeAll(tags_line);
 
     const blocked_line = try std.fmt.allocPrint(allocator, "Blocked Tasks:        {d}\n", .{stats.blocked_tasks});
     defer allocator.free(blocked_line);
-    try stdout.writeAll(blocked_line);
+    try out.writeAll(blocked_line);
 
-    try stdout.writeAll("\n✅ By Status\n");
-    try stdout.writeAll("────────────────────────────────────────────────────────────\n");
+    try out.writeAll("\n");
+    try display.writeStyled(out, options, .cyan, "✅ By Status");
+    try out.writeAll("\n");
+    try out.writeAll("────────────────────────────────────────────────────────────\n");
 
     const todo_line = try std.fmt.allocPrint(allocator, "Todo:                 {d}\n", .{stats.by_status[@intFromEnum(Status.todo)]});
     defer allocator.free(todo_line);
-    try stdout.writeAll(todo_line);
+    try out.writeAll(todo_line);
 
     const in_progress_line = try std.fmt.allocPrint(allocator, "In Progress:          {d}\n", .{stats.by_status[@intFromEnum(Status.in_progress)]});
     defer allocator.free(in_progress_line);
-    try stdout.writeAll(in_progress_line);
+    try out.writeAll(in_progress_line);
 
     const done_line = try std.fmt.allocPrint(allocator, "Done:                 {d}\n", .{stats.by_status[@intFromEnum(Status.done)]});
     defer allocator.free(done_line);
-    try stdout.writeAll(done_line);
+    try out.writeAll(done_line);
 
     const blocked_status_line = try std.fmt.allocPrint(allocator, "Blocked:              {d}\n", .{stats.by_status[@intFromEnum(Status.blocked)]});
     defer allocator.free(blocked_status_line);
-    try stdout.writeAll(blocked_status_line);
+    try out.writeAll(blocked_status_line);
 
-    try stdout.writeAll("\n⚡ By Priority\n");
-    try stdout.writeAll("────────────────────────────────────────────────────────────\n");
+    try out.writeAll("\n");
+    try display.writeStyled(out, options, .cyan, "⚡ By Priority");
+    try out.writeAll("\n");
+    try out.writeAll("────────────────────────────────────────────────────────────\n");
 
     const low_line = try std.fmt.allocPrint(allocator, "Low:                  {d}\n", .{stats.by_priority[@intFromEnum(Priority.low)]});
     defer allocator.free(low_line);
-    try stdout.writeAll(low_line);
+    try out.writeAll(low_line);
 
     const medium_line = try std.fmt.allocPrint(allocator, "Medium:               {d}\n", .{stats.by_priority[@intFromEnum(Priority.medium)]});
     defer allocator.free(medium_line);
-    try stdout.writeAll(medium_line);
+    try out.writeAll(medium_line);
 
     const high_line = try std.fmt.allocPrint(allocator, "High:                 {d}\n", .{stats.by_priority[@intFromEnum(Priority.high)]});
     defer allocator.free(high_line);
-    try stdout.writeAll(high_line);
+    try out.writeAll(high_line);
 
     const critical_line = try std.fmt.allocPrint(allocator, "Critical:             {d}\n", .{stats.by_priority[@intFromEnum(Priority.critical)]});
     defer allocator.free(critical_line);
-    try stdout.writeAll(critical_line);
+    try out.writeAll(critical_line);
 
-    try stdout.writeAll("\n📈 This Week\n");
-    try stdout.writeAll("────────────────────────────────────────────────────────────\n");
+    try out.writeAll("\n");
+    try display.writeStyled(out, options, .cyan, "📈 This Week");
+    try out.writeAll("\n");
+    try out.writeAll("────────────────────────────────────────────────────────────\n");
 
     const created_line = try std.fmt.allocPrint(allocator, "Tasks Created:        {d}\n", .{stats.created_this_week});
     defer allocator.free(created_line);
-    try stdout.writeAll(created_line);
+    try out.writeAll(created_line);
 
     const completed_week_line = try std.fmt.allocPrint(allocator, "Tasks Completed:      {d}\n", .{stats.completed_this_week});
     defer allocator.free(completed_week_line);
-    try stdout.writeAll(completed_week_line);
+    try out.writeAll(completed_week_line);
 
     if (stats.unique_tags.count() > 0) {
-        try stdout.writeAll("\n🏷️  Top Tags\n");
-        try stdout.writeAll("────────────────────────────────────────────────────────────\n");
+        try out.writeAll("\n");
+        try display.writeStyled(out, options, .cyan, "🏷️  Top Tags");
+        try out.writeAll("\n");
+        try out.writeAll("────────────────────────────────────────────────────────────\n");
 
         // Sort tags by count
         var tag_entries = try std.ArrayList(TagEntry).initCapacity(stats.unique_tags.allocator, stats.unique_tags.count());
@@ -192,11 +219,11 @@ fn renderStats(stdout: std.fs.File, stats: *const Stats, completion_rate: f64) !
         for (tag_entries.items[0..max_tags]) |entry| {
             const tag_line = try std.fmt.allocPrint(allocator, "  {s:<20} {d:>4} tasks\n", .{ entry.tag, entry.count });
             defer allocator.free(tag_line);
-            try stdout.writeAll(tag_line);
+            try out.writeAll(tag_line);
         }
     }
 
-    try stdout.writeAll("\n");
+    try out.writeAll("\n");
 }
 
 test "calculate stats" {

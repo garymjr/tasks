@@ -18,7 +18,19 @@ pub fn run(allocator: std.mem.Allocator, stdout: std.fs.File, stderr: std.fs.Fil
     _ = iter.skip(); // Skip executable
     _ = iter.skip(); // Skip "edit"
 
-    const id_str = iter.next() orelse {
+    var no_color = false;
+    var id_str: ?[]const u8 = null;
+
+    while (iter.next()) |arg| {
+        if (std.mem.eql(u8, arg, "--no-color")) {
+            no_color = true;
+            continue;
+        }
+        id_str = arg;
+        break;
+    }
+
+    const id_value = id_str orelse {
         try stderr.writeAll("Error: Task ID is required\n");
         try stderr.writeAll("Usage: tasks edit <ID> [--title TXT] [--body TXT] [--status S] [--priority P] [--tags TAGS]\n");
         return error.MissingId;
@@ -29,7 +41,7 @@ pub fn run(allocator: std.mem.Allocator, stdout: std.fs.File, stderr: std.fs.Fil
     defer task_store.deinit();
 
     // Find task
-    const task = task_store.findByShortId(id_str) orelse {
+    const task = task_store.findByShortId(id_value) orelse {
         try stderr.writeAll("Error: Task not found\n");
         return error.TaskNotFound;
     };
@@ -71,6 +83,8 @@ pub fn run(allocator: std.mem.Allocator, stdout: std.fs.File, stderr: std.fs.Fil
                 }
             }
             tags = new_tags;
+        } else if (std.mem.eql(u8, arg, "--no-color")) {
+            no_color = true;
         }
     }
 
@@ -125,9 +139,11 @@ pub fn run(allocator: std.mem.Allocator, stdout: std.fs.File, stderr: std.fs.Fil
     // Save
     try store.saveTasks(allocator, &task_store);
 
+    const options = display.resolveOptions(stdout, no_color);
+
     // Show result
     try stdout.writeAll("Updated task:\n\n");
-    const detail = try display.renderTaskDetail(allocator, task);
+    const detail = try display.renderTaskDetail(allocator, task, options);
     defer allocator.free(detail);
     try stdout.writeAll(detail);
 }

@@ -21,6 +21,7 @@ pub fn run(allocator: std.mem.Allocator, stdout: std.fs.File) !void {
     var tag_filter: ?[]const u8 = null;
     var blocked_only = false;
     var unblocked_only = false;
+    var no_color = false;
 
     while (iter.next()) |arg| {
         if (std.mem.eql(u8, arg, "--status")) {
@@ -41,6 +42,8 @@ pub fn run(allocator: std.mem.Allocator, stdout: std.fs.File) !void {
             blocked_only = true;
         } else if (std.mem.eql(u8, arg, "--unblocked")) {
             unblocked_only = true;
+        } else if (std.mem.eql(u8, arg, "--no-color")) {
+            no_color = true;
         }
     }
 
@@ -84,7 +87,8 @@ pub fn run(allocator: std.mem.Allocator, stdout: std.fs.File) !void {
     }
 
     // Render
-    const output = try display.renderTaskTable(allocator, filtered.items);
+    const options = display.resolveOptions(stdout, no_color);
+    const output = try display.renderTaskTable(allocator, filtered.items, options);
     defer allocator.free(output);
     try stdout.writeAll(output);
 }

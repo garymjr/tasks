@@ -39,6 +39,9 @@ pub fn printHelp(stdout: std.fs.File) !void {
     try stdout.writeAll(
         \\Tasks CLI - Task management
         \\
+        \\Global Flags:
+        \\  --no-color            Disable ANSI colors
+        \\
         \\Core Commands:
         \\  init                    Initialize in current directory
         \\  add "TITLE"             Add a new task

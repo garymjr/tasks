@@ -717,13 +717,13 @@ pub fn updateBlockedBy(store: *TaskStore) !void {
 
 ### Phase 8: ANSI Color Enhancement
 
-- [ ] Enhance `display.zig` with color-coded output
-- [ ] Color status symbols (todo=yellow, in_progress=blue, done=green, blocked=red)
-- [ ] Color priority indicators (low=dim, medium=normal, high=yellow, critical=red)
-- [ ] Color stats output sections
-- [ ] Add `--no-color` flag to disable colors for non-TTY output
-- [ ] Color tag output in `tags` command
-- [ ] Enhanced table formatting with borders/lines
+- [x] Enhance `display.zig` with color-coded output
+- [x] Color status symbols (todo=yellow, in_progress=blue, done=green, blocked=red)
+- [x] Color priority indicators (low=dim, medium=normal, high=yellow, critical=red)
+- [x] Color stats output sections
+- [x] Add `--no-color` flag to disable colors for non-TTY output
+- [x] Color tag output in `tags` command
+- [x] Enhanced table formatting with borders/lines
 
 ---
 

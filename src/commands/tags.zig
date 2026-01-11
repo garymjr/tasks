@@ -1,6 +1,7 @@
 const std = @import("std");
 const model = @import("../model.zig");
 const store = @import("../store.zig");
+const display = @import("../display.zig");
 
 const TagsError = error{
     NotInitialized,
@@ -8,6 +9,23 @@ const TagsError = error{
 } || store.StorageError;
 
 pub fn run(allocator: std.mem.Allocator, stdout: std.fs.File) !void {
+    var iter = std.process.args();
+    _ = iter.skip();
+    _ = iter.skip();
+
+    var no_color = false;
+    while (iter.next()) |arg| {
+        if (std.mem.eql(u8, arg, "--no-color")) {
+            no_color = true;
+        }
+    }
+
+    const options = display.resolveOptions(stdout, no_color);
+    var buffer: [4096]u8 = undefined;
+    var writer = stdout.writer(&buffer);
+    defer writer.interface.flush() catch {};
+    const out = &writer.interface;
+
     // Load existing tasks
     var task_store = try store.loadTasks(allocator);
     defer task_store.deinit();
@@ -47,17 +65,26 @@ pub fn run(allocator: std.mem.Allocator, stdout: std.fs.File) !void {
     }.lessThan);
 
     // Render output
-    try stdout.writeAll("Tags:\n");
-    try stdout.writeAll("───────\n");
+    try out.writeAll("Tags:\n");
+    try out.writeAll("───────\n");
 
     if (sorted_tags.items.len == 0) {
-        try stdout.writeAll("(no tags)\n");
+        try out.writeAll("(no tags)\n");
         return;
     }
 
+    const tag_width: usize = 30;
+
     for (sorted_tags.items) |item| {
-        const line = try std.fmt.allocPrint(allocator, "{s:<30} ({})\n", .{ item[0], item[1] });
-        defer allocator.free(line);
-        try stdout.writeAll(line);
+        try display.writeStyled(out, options, .cyan, item[0]);
+        if (item[0].len < tag_width) {
+            var i: usize = 0;
+            while (i < tag_width - item[0].len) : (i += 1) {
+                try out.writeByte(' ');
+            }
+        }
+        try out.writeAll(" ");
+        try display.writeStyledFmt(out, options, .bright_black, "({})", .{item[1]});
+        try out.writeAll("\n");
     }
 }
