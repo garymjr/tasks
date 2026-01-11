@@ -191,10 +191,21 @@ pub fn truncate(str: []const u8, max_len: usize) []const u8 {
     return str[0..max_len];
 }
 
-pub fn truncateWithEllipsis(str: []const u8, max_len: usize) []const u8 {
+pub fn truncateWithEllipsis(buf: []u8, str: []const u8, max_len: usize) []const u8 {
     if (str.len <= max_len) return str;
-    const len = @max(0, max_len - 3);
-    return str[0..len];
+    if (max_len == 0) return str[0..0];
+
+    if (max_len <= 3) {
+        for (0..max_len) |i| {
+            buf[i] = '.';
+        }
+        return buf[0..max_len];
+    }
+
+    const keep = max_len - 3;
+    @memcpy(buf[0..keep], str[0..keep]);
+    @memcpy(buf[keep .. keep + 3], "...");
+    return buf[0..max_len];
 }
 
 test "format timestamp alloc" {
@@ -279,6 +290,8 @@ test "truncate" {
 
 test "truncate with ellipsis" {
     const long = "This is a very long string that needs truncation";
-    const truncated = truncateWithEllipsis(long, 20);
-    try std.testing.expectEqual(@as(usize, 17), truncated.len);
+    var buf: [32]u8 = undefined;
+    const truncated = truncateWithEllipsis(&buf, long, 20);
+    try std.testing.expectEqual(@as(usize, 20), truncated.len);
+    try std.testing.expect(std.mem.endsWith(u8, truncated, "..."));
 }

@@ -167,7 +167,8 @@ pub fn renderTaskTable(allocator: std.mem.Allocator, tasks: []const *Task, optio
             priorityName(task.priority),
         });
 
-        const title = utils.truncateWithEllipsis(task.title, title_width);
+        var title_buf: [40]u8 = undefined;
+        const title = utils.truncateWithEllipsis(&title_buf, task.title, title_width);
 
         try writer.writeAll("│ ");
         try writePadded(writer, id_str, id_width);

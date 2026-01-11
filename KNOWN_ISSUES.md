@@ -15,12 +15,11 @@ Added `formatRelativeToWriter()` in `src/utils.zig` and updated `src/display.zig
 ## Title Truncation Lacks Ellipsis
 
 ### Status
-**OPEN** - `truncateWithEllipsis()` truncates without adding `...`, so shortened titles in tables lack visual indication.
+**RESOLVED** - `truncateWithEllipsis()` now appends `...` when titles are shortened.
 
 ### Impact
 Long titles in the task list are cut to fit the column width, but users cannot tell the title was truncated.
 
 ### Related Files
-- `src/utils.zig` - `truncateWithEllipsis()`
-- `src/display.zig` - Uses `truncateWithEllipsis()` in table output
-
+- `src/utils.zig` - `truncateWithEllipsis()` now writes ellipsis into a buffer
+- `src/display.zig` - Uses buffered `truncateWithEllipsis()` for table output
