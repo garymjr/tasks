@@ -20,45 +20,45 @@ Local-first task manager stored in `.tasks/tasks.json` per directory. Supports d
 ### Bootstrap a Repo
 
 ```bash
-tasks init
-tasks add "Project kickoff" --priority high --tags planning
+tasks init --json
+tasks add "Project kickoff" --priority high --tags planning --json
 ```
 
 ### Daily Loop
 
 ```bash
-tasks next
+tasks next --json
 # pick one, then:
-tasks edit <id> --status in_progress
+tasks edit <id> --status in_progress --json
 # when done:
-tasks done <id>
+tasks done <id> --json
 ```
 
 ### Dependency-Driven Planning
 
 ```bash
-tasks add "Ship v1" --priority high --tags release
+tasks add "Ship v1" --priority high --tags release --json
 PARENT=<id>
 
-tasks add "Write changelog" --tags docs
+tasks add "Write changelog" --tags docs --json
 CHILD=<id>
 
-tasks link $CHILD $PARENT
+tasks link $CHILD $PARENT --json
 # work ready items only:
-tasks next --all
+tasks next --all --json
 ```
 
 ### Triage + Tagging
 
 ```bash
-tasks list --status todo --priority high
-tasks tag <id> urgent
-tasks edit <id> --priority critical
+tasks list --status todo --priority high --json
+tasks tag <id> urgent --json
+tasks edit <id> --priority critical --json
 ```
 
 ### Review + Cleanup
 
 ```bash
-tasks list --status done
-tasks delete <id>
+tasks list --status done --json
+tasks delete <id> --json
 ```
