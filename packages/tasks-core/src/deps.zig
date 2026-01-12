@@ -11,6 +11,7 @@ pub fn updateBlockedBy(store: anytype) !void {
 
     for (store.tasks.items) |task| {
         for (task.dependencies.items) |dep_str| {
+            if (dep_str.len < 36) continue;
             const dep_id = uuid.parseUuid(dep_str[0..36]) catch continue;
             const dep = store.findByUuid(dep_id) orelse continue;
             const id_str = uuid.formatUuid(task.id);
@@ -30,6 +31,7 @@ pub fn hasCycle(store: anytype, start_id: anytype) bool {
 
 pub fn isReady(store: anytype, task: anytype) bool {
     for (task.dependencies.items) |dep_str| {
+        if (dep_str.len < 36) continue;
         const dep_id = uuid.parseUuid(dep_str[0..36]) catch continue;
         const dep = store.findByUuid(dep_id) orelse continue;
         if (dep.status != .done) return false;
@@ -77,6 +79,7 @@ fn hasCycleDfs(
     };
 
     for (task.dependencies.items) |dep_str| {
+        if (dep_str.len < 36) continue;
         const dep_id = uuid.parseUuid(dep_str[0..36]) catch continue;
         if (hasCycleDfs(UuidType, store, dep_id, visited, in_stack)) return true;
     }

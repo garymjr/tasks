@@ -44,6 +44,7 @@ fn writeTreeNode(writer: anytype, allocator: std.mem.Allocator, store: *TaskStor
         defer allocator.free(new_prefix);
 
         for (task.dependencies.items, 0..) |dep_str, i| {
+            if (dep_str.len < 36) continue;
             const dep_id = parseUuid(dep_str[0..36]) catch continue;
             const dep = store.findByUuid(dep_id) orelse {
                 const dep_id_short = dep_str[0..8];
@@ -93,6 +94,7 @@ fn writeReverseTreeNode(writer: anytype, allocator: std.mem.Allocator, store: *T
         defer allocator.free(new_prefix);
 
         for (task.blocked_by.items, 0..) |blocked_str, i| {
+            if (blocked_str.len < 36) continue;
             const blocked_id = parseUuid(blocked_str[0..36]) catch continue;
             const blocked_task = store.findByUuid(blocked_id) orelse {
                 const blocked_id_short = blocked_str[0..8];

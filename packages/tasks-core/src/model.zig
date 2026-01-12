@@ -386,6 +386,18 @@ test "taskstore is ready" {
     try std.testing.expect(store.isReady(task2.*));
 }
 
+test "taskstore is ready ignores short dependency" {
+    const allocator = std.testing.allocator;
+    var store = TaskStore.init(allocator);
+    defer store.deinit();
+
+    const task = try store.create("Short dependency task");
+    const short_id = try allocator.dupe(u8, "short");
+    try task.dependencies.append(allocator, short_id);
+
+    try std.testing.expect(store.isReady(task.*));
+}
+
 test "taskstore get ready tasks" {
     const allocator = std.testing.allocator;
     var store = TaskStore.init(allocator);
