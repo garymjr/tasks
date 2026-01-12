@@ -145,14 +145,13 @@ pub fn deinitStore() !void {
 
 fn writeTask(writer: anytype, task: *const Task) !void {
     const id_str = formatUuid(task.id);
-    const body_str = if (task.body) |b| b else "";
 
     try writer.writeAll("{\"id\":");
     try writeJsonString(writer, &id_str);
     try writer.writeAll(",\"title\":");
     try writeJsonString(writer, task.title);
     try writer.writeAll(",\"body\":");
-    try writeJsonString(writer, body_str);
+    try writeOptionalString(writer, task.body);
     try writer.writeAll(",\"status\":");
     try writeJsonString(writer, @tagName(task.status));
     try writer.writeAll(",\"priority\":");
@@ -204,6 +203,14 @@ fn writeJsonString(writer: anytype, value: []const u8) !void {
     try writer.writeByte('"');
 }
 
+fn writeOptionalString(writer: anytype, value: ?[]const u8) !void {
+    if (value) |text| {
+        try writeJsonString(writer, text);
+    } else {
+        try writer.writeAll("null");
+    }
+}
+
 fn writeOptionalTimestamp(writer: anytype, timestamp: ?i64) !void {
     if (timestamp) |value| {
         try writer.print("{}", .{value});
@@ -238,7 +245,11 @@ fn parseTask(allocator: std.mem.Allocator, obj: std.json.ObjectMap) !Task {
     };
 
     if (obj.get("body")) |b| {
-        task.body = try allocator.dupe(u8, b.string);
+        switch (b) {
+            .string => |body_str| task.body = try allocator.dupe(u8, body_str),
+            .null => {},
+            else => return error.InvalidJson,
+        }
     }
 
     if (obj.get("completed_at")) |t| {
@@ -303,6 +314,29 @@ test "save and load tasks" {
     try testing.expectEqualStrings("Test task 2", loaded2.title);
     try testing.expectEqual(Priority.high, loaded2.priority);
     try testing.expectEqual(expected_completed_at, loaded2.completed_at.?);
+}
+
+test "save and load tasks preserves null and empty body" {
+    const testing = std.testing;
+    const allocator = testing.allocator;
+
+    var store1 = TaskStore.init(allocator);
+    defer store1.deinit();
+
+    const null_body = try store1.create("Null body");
+    const empty_body = try store1.create("Empty body");
+    empty_body.body = try allocator.dupe(u8, "");
+
+    try saveTasks(allocator, &store1);
+
+    var store2 = try loadTasks(allocator);
+    defer store2.deinit();
+
+    const loaded_null = store2.findByUuid(null_body.id).?;
+    try testing.expectEqual(@as(?[]const u8, null), loaded_null.body);
+
+    const loaded_empty = store2.findByUuid(empty_body.id).?;
+    try testing.expectEqualStrings("", loaded_empty.body.?);
 }
 
 test "save and load tasks with escaped strings" {
