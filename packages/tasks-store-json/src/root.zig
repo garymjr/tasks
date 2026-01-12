@@ -37,9 +37,21 @@ pub fn exists() bool {
 
 pub fn createLock() !std.fs.File {
     try ensureDir();
-    return std.fs.cwd().openFile(LOCK_FILE, .{ .mode = .read_write }) catch |e| {
+    return std.fs.cwd().openFile(LOCK_FILE, .{
+        .mode = .read_write,
+        .lock = .exclusive,
+        .lock_nonblocking = true,
+    }) catch |e| {
+        if (e == error.WouldBlock) return error.LockFailed;
         if (e == error.FileNotFound) {
-            return std.fs.cwd().createFile(LOCK_FILE, .{ .exclusive = true });
+            return std.fs.cwd().createFile(LOCK_FILE, .{
+                .exclusive = true,
+                .lock = .exclusive,
+                .lock_nonblocking = true,
+            }) catch |create_err| {
+                if (create_err == error.WouldBlock) return error.LockFailed;
+                return create_err;
+            };
         }
         return e;
     };
@@ -316,4 +328,29 @@ test "save and load tasks with escaped strings" {
     try testing.expectEqual(@as(usize, 2), loaded.tags.items.len);
     try testing.expectEqualStrings("tag\"1", loaded.tags.items[0]);
     try testing.expectEqualStrings("tag\n2", loaded.tags.items[1]);
+}
+
+test "save tasks fails when lock is held" {
+    const testing = std.testing;
+    const allocator = testing.allocator;
+
+    try ensureDir();
+
+    const lock_file = std.fs.cwd().openFile(LOCK_FILE, .{
+        .mode = .read_write,
+        .lock = .exclusive,
+    }) catch |e| switch (e) {
+        error.FileNotFound => try std.fs.cwd().createFile(LOCK_FILE, .{
+            .exclusive = true,
+            .lock = .exclusive,
+        }),
+        else => return e,
+    };
+    defer lock_file.close();
+
+    var store = TaskStore.init(allocator);
+    defer store.deinit();
+    _ = try store.create("Locked");
+
+    try testing.expectError(error.LockFailed, saveTasks(allocator, &store));
 }
