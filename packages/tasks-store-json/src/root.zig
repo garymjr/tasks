@@ -159,10 +159,12 @@ fn writeTask(writer: anytype, task: *const Task) !void {
         try writeJsonString(writer, dep);
     }
 
-    try writer.print("],\"created_at\":{},\"updated_at\":{}}}", .{
+    try writer.print("],\"created_at\":{},\"updated_at\":{},\"completed_at\":", .{
         task.created_at,
         task.updated_at,
     });
+    try writeOptionalTimestamp(writer, task.completed_at);
+    try writer.writeAll("}");
 }
 
 fn writeJsonString(writer: anytype, value: []const u8) !void {
@@ -188,6 +190,14 @@ fn writeJsonString(writer: anytype, value: []const u8) !void {
         }
     }
     try writer.writeByte('"');
+}
+
+fn writeOptionalTimestamp(writer: anytype, timestamp: ?i64) !void {
+    if (timestamp) |value| {
+        try writer.print("{}", .{value});
+    } else {
+        try writer.writeAll("null");
+    }
 }
 
 fn parseTask(allocator: std.mem.Allocator, obj: std.json.ObjectMap) !Task {
@@ -220,7 +230,11 @@ fn parseTask(allocator: std.mem.Allocator, obj: std.json.ObjectMap) !Task {
     }
 
     if (obj.get("completed_at")) |t| {
-        task.completed_at = t.integer;
+        switch (t) {
+            .integer => |value| task.completed_at = value,
+            .null => {},
+            else => return error.InvalidJson,
+        }
     }
 
     if (obj.get("tags")) |tags_val| {
@@ -259,6 +273,8 @@ test "save and load tasks" {
     try task1.tags.append(allocator, try allocator.dupe(u8, "bug"));
     const task2 = try store1.create("Test task 2");
     task2.priority = .high;
+    task2.markDone();
+    const expected_completed_at = task2.completed_at.?;
 
     try saveTasks(allocator, &store1);
 
@@ -274,6 +290,7 @@ test "save and load tasks" {
     const loaded2 = store2.findByUuid(task2.id).?;
     try testing.expectEqualStrings("Test task 2", loaded2.title);
     try testing.expectEqual(Priority.high, loaded2.priority);
+    try testing.expectEqual(expected_completed_at, loaded2.completed_at.?);
 }
 
 test "save and load tasks with escaped strings" {
