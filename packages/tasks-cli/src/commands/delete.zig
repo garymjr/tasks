@@ -17,6 +17,10 @@ pub const args = [_]argparse.Arg{
     .{ .name = "id", .kind = .positional, .position = 0, .required = true, .help = "Task ID" },
 };
 
+fn shortId(id_str: []const u8) []const u8 {
+    return id_str[0..@min(id_str.len, 8)];
+}
+
 pub fn run(allocator: std.mem.Allocator, stdout: std.fs.File, stderr: std.fs.File, parser: *argparse.Parser) !void {
     const id_str = try parser.getRequiredPositional("id");
     const use_json = parser.getFlag("json");
@@ -53,10 +57,11 @@ pub fn run(allocator: std.mem.Allocator, stdout: std.fs.File, stderr: std.fs.Fil
     for (task_store.tasks.items) |task_item| {
         for (task_item.dependencies.items) |dep| {
             if (std.mem.eql(u8, dep, &id_full)) {
+                const short_id = shortId(id_str);
                 const msg = try std.fmt.allocPrint(
                     allocator,
                     "Cannot delete task - other tasks depend on it. Run 'tasks graph {s}' to see dependents.",
-                    .{id_str[0..8]},
+                    .{short_id},
                 );
                 defer allocator.free(msg);
                 if (use_json) {
@@ -71,7 +76,7 @@ pub fn run(allocator: std.mem.Allocator, stdout: std.fs.File, stderr: std.fs.Fil
                     allocator,
                     "Error: Cannot delete task - other tasks depend on it.\n" ++
                         "Run 'tasks graph {s}' to see dependents.\n",
-                    .{id_str[0..8]},
+                    .{short_id},
                 );
                 defer allocator.free(stderr_msg);
                 try stderr.writeAll(stderr_msg);
@@ -104,6 +109,13 @@ pub fn run(allocator: std.mem.Allocator, stdout: std.fs.File, stderr: std.fs.Fil
     const msg = try std.fmt.allocPrint(allocator, "Deleted task: {s}\n", .{id_str});
     defer allocator.free(msg);
     try stdout.writeAll(msg);
+}
+
+test "shortId handles short inputs" {
+    const testing = std.testing;
+
+    try testing.expectEqualStrings("abc", shortId("abc"));
+    try testing.expectEqualStrings("12345678", shortId("1234567890"));
 }
 
 test "delete removes task" {
