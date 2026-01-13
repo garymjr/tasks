@@ -342,10 +342,10 @@ pub fn statusName(status: model.Status) []const u8 {
 
 pub fn prioritySymbol(priority: model.Priority) []const u8 {
     return switch (priority) {
-        .low => "○",
-        .medium => "◐",
+        .low => "●",
+        .medium => "●",
         .high => "●",
-        .critical => "⚠",
+        .critical => "●",
     };
 }
 

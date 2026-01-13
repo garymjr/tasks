@@ -5,7 +5,7 @@
     .dependencies = .{
         .argparse = .{
             .url = "https://github.com/garymjr/argparse/archive/refs/heads/main.tar.gz",
-            .hash = "argparse-0.0.0-QjWSOm0iAgAFm5u1-XekgU_tbaYftteZn6QWPQSJEBii",
+            .hash = "argparse-0.0.0-QjWSOowiAgB3ilMMtGRmez0HIda9LHtk6QJ9zirxGOJU",
         },
         .tasks_core = .{ .path = "../tasks-core" },
         .tasks_render = .{ .path = "../tasks-render" },
